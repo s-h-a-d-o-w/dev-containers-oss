@@ -287,7 +287,7 @@ function getNodeEnv(): NodeJS.ProcessEnv {
   return { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
 }
 
-export function runCliCapture(
+function runCliCapture(
   ctx: vscode.ExtensionContext,
   args: string[],
   { cwd }: { cwd?: string },

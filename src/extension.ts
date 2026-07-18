@@ -9,18 +9,18 @@ import {
   resetLog,
   setDevMode,
   withLogTerminal,
-} from "./devcontainerCore.ts";
+} from "./core.ts";
 import {
   getHandoffMarkerPath,
-  openWorkspaceOverSsh,
+  sshRuntime,
   resolveLocalWorkspaceFolder,
 } from "./sshRuntime.ts";
 import {
   AUTHORITY_PREFIX,
   decodeLocalFolder,
-  openFolderInContainer,
+  nativeRuntime,
   registerRemoteResolver,
-} from "./containerRuntime.ts";
+} from "./nativeRuntime.ts";
 import { EXTENSION_ID } from "./constants.ts";
 
 const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
@@ -193,7 +193,7 @@ export function activate(context: vscode.ExtensionContext) {
     return decodeLocalFolder(authority);
   }
 
-  async function runDevcontainerUpAndOpen(
+  async function openFolderWithSsh(
     wsFsPath: string,
     forceRebuild: boolean,
   ): Promise<void> {
@@ -203,7 +203,7 @@ export function activate(context: vscode.ExtensionContext) {
         rebuild: forceRebuild,
       });
       const customizations = await readMergedCustomizations(context, wsFsPath);
-      await openWorkspaceOverSsh(
+      await sshRuntime(
         wsFsPath,
         result.containerId,
         result.remoteUser,
@@ -213,7 +213,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
   }
 
-  async function openFolderOverSsh(forceRebuild: boolean): Promise<void> {
+  async function useSsh(forceRebuild: boolean): Promise<void> {
     const hostAlias = getConnectedHostAlias();
     if (hostAlias) {
       // We are inside the container we are about to (re)build. The devcontainer CLI runs
@@ -238,13 +238,10 @@ export function activate(context: vscode.ExtensionContext) {
       );
       return;
     }
-    await runDevcontainerUpAndOpen(
-      getWorkspaceOrThrow().uri.fsPath,
-      forceRebuild,
-    );
+    await openFolderWithSsh(getWorkspaceOrThrow().uri.fsPath, forceRebuild);
   }
 
-  async function openInContainer(forceRebuild: boolean): Promise<void> {
+  async function useNative(forceRebuild: boolean): Promise<void> {
     const connectedLocalFolder = getConnectedContainerLocalFolder();
     if (connectedLocalFolder) {
       // We are inside the container the resolver connected us to. Rebuilding removes this
@@ -262,7 +259,7 @@ export function activate(context: vscode.ExtensionContext) {
       );
       return;
     }
-    await openFolderInContainer(
+    await nativeRuntime(
       context,
       getWorkspaceOrThrow().uri.fsPath,
       forceRebuild,
@@ -275,17 +272,17 @@ export function activate(context: vscode.ExtensionContext) {
   // when the proposed API is unavailable, so users never have to pick a runtime.
   async function openDevcontainer(forceRebuild: boolean): Promise<void> {
     if (getConnectedHostAlias()) {
-      await openFolderOverSsh(forceRebuild);
+      await useSsh(forceRebuild);
       return;
     }
     if (getConnectedContainerLocalFolder()) {
-      await openInContainer(forceRebuild);
+      await useNative(forceRebuild);
       return;
     }
     if (nativeAvailable) {
-      await openInContainer(forceRebuild);
+      await useNative(forceRebuild);
     } else {
-      await openFolderOverSsh(forceRebuild);
+      await useSsh(forceRebuild);
     }
   }
 
@@ -311,8 +308,8 @@ export function activate(context: vscode.ExtensionContext) {
     await withUiErrorHandling(
       () =>
         pending.native
-          ? openFolderInContainer(context, pending.localFolder, pending.rebuild)
-          : runDevcontainerUpAndOpen(pending.localFolder, pending.rebuild),
+          ? nativeRuntime(context, pending.localFolder, pending.rebuild)
+          : openFolderWithSsh(pending.localFolder, pending.rebuild),
       { appendToOutput: false },
     )();
   }
