@@ -3,7 +3,7 @@ import vscode from "vscode";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import type { ProductInfo } from "./types.ts";
+import type { ProductInfo } from "../types.ts";
 import {
   DevcontainerUpResult,
   devcontainerUp,
@@ -12,8 +12,8 @@ import {
   readMergedCustomizations,
   resetLog,
   withLogTerminal,
-} from "./core.ts";
-import { EXTENSION_ID } from "./constants.ts";
+} from "../core.ts";
+import { EXTENSION_ID } from "../constants.ts";
 import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,
@@ -21,8 +21,8 @@ import {
   getEffectiveUser,
   getUserHome,
   spawnDockerExec,
-} from "./dockerOps.ts";
-import { getServerDataFolderName, readProductJson } from "./hostInfo.ts";
+} from "../dockerOps.ts";
+import { getServerDataFolderName, readProductJson } from "../hostInfo.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(localFolder)>`, so the container a window belongs to can be

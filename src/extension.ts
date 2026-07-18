@@ -14,13 +14,13 @@ import {
   getHandoffMarkerPath,
   sshRuntime,
   resolveLocalWorkspaceFolder,
-} from "./sshRuntime.ts";
+} from "./runtimes/ssh.ts";
 import {
   AUTHORITY_PREFIX,
   decodeLocalFolder,
   nativeRuntime,
   registerRemoteResolver,
-} from "./nativeRuntime.ts";
+} from "./runtimes/native.ts";
 import { EXTENSION_ID } from "./constants.ts";
 
 const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";

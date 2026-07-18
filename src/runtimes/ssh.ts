@@ -10,7 +10,7 @@ import {
   getLog,
   runCommandCapture,
   runEditorCliCapture,
-} from "./core";
+} from "../core";
 import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,
@@ -18,8 +18,8 @@ import {
   execInContainerAsRoot,
   getEffectiveUser,
   getUserHome,
-} from "./dockerOps";
-import { EXTENSION_ID } from "./constants";
+} from "../dockerOps";
+import { EXTENSION_ID } from "../constants";
 
 // Local (host-side) marker whose presence tells the reopened window to display the log
 // once, and whose contents carry the log text itself. The reopened window runs this
