@@ -4,8 +4,10 @@
     "target": "ESNext",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "checkJs": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", ".vscode-test"]
+  "exclude": ["node_modules", "dist"]
 }

@@ -1,8 +1,10 @@
-import * as vscode from "vscode";
-import * as fs from "fs";
-import * as net from "net";
-import * as path from "path";
-import { spawn } from "child_process";
+// oxlint-disable no-template-curly-in-string
+import vscode from "vscode";
+import fs from "node:fs";
+import net from "node:net";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import type { ProductInfo } from "./types.ts";
 import {
   DevcontainerUpResult,
   devcontainerUp,
@@ -12,8 +14,8 @@ import {
   resetLog,
   runCommandCapture,
   withLogTerminal,
-} from "./devcontainerCore";
-import { EXTENSION_ID } from "./constants";
+} from "./devcontainerCore.ts";
+import { EXTENSION_ID } from "./constants.ts";
 import {
   applyRemoteMachineSettings,
   ensureGitConfigInContainer,
@@ -21,7 +23,7 @@ import {
   getEffectiveUser,
   getServerDataFolderName,
   getUserHome,
-} from "./sshRuntime";
+} from "./sshRuntime.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(localFolder)>`, so the container a window belongs to can be
@@ -29,52 +31,43 @@ import {
 export const AUTHORITY_PREFIX = EXTENSION_ID;
 
 export function encodeAuthority(localFolder: string): string {
-  return `${AUTHORITY_PREFIX}+${Buffer.from(localFolder, "utf-8").toString("hex")}`;
+  return `${AUTHORITY_PREFIX}+${Buffer.from(localFolder, "utf8").toString("hex")}`;
 }
 
 // `authority` here is the part after the scheme, e.g. `dev-containers-oss+<hex>`.
 export function decodeLocalFolder(authority: string): string {
   const plus = authority.indexOf("+");
-  const hex = plus >= 0 ? authority.slice(plus + 1) : authority;
-  return Buffer.from(hex, "hex").toString("utf-8");
+  const hex = plus !== -1 ? authority.slice(plus + 1) : authority;
+  return Buffer.from(hex, "hex").toString("utf8");
 }
-
-type ProductInfo = {
-  commit: string;
-  quality: string;
-  version: string;
-  release: string;
-  serverApplicationName: string;
-  serverDataFolderName: string;
-  serverDownloadUrlTemplate: string | undefined;
-};
 
 // The REH (remote extension host / server) build we install into the container must match
 // the running client exactly, so its identity is read from the client's own product.json.
 function readProductInfo(): ProductInfo {
-  const appRoot = vscode.env.appRoot;
-  let product: any = {};
-  let appPackage: any = {};
+  const { appRoot } = vscode.env;
+  let product: Partial<ProductInfo> = {};
+  let appPackage: { version?: string } = {};
   try {
     product = JSON.parse(
-      fs.readFileSync(path.join(appRoot, "product.json"), "utf-8"),
-    );
+      fs.readFileSync(path.join(appRoot, "product.json"), "utf8"),
+    ) as Partial<ProductInfo>;
   } catch {
     // fall back to empty; validated below
   }
   try {
     appPackage = JSON.parse(
-      fs.readFileSync(path.join(appRoot, "package.json"), "utf-8"),
-    );
+      fs.readFileSync(path.join(appRoot, "package.json"), "utf8"),
+    ) as { version?: string };
   } catch {
     // version may still live on product.json
   }
   return {
-    commit: product.commit || "",
-    quality: product.quality || "stable",
-    version: product.version || appPackage.version || "",
-    release: product.release || "",
-    serverApplicationName: product.serverApplicationName || "code-server",
+    commit: product.commit ?? "",
+    quality: product.quality ?? "stable",
+    version: product.version ?? appPackage.version ?? "",
+    release: product.release ?? "",
+    applicationName: product.applicationName ?? "codium",
+    serverApplicationName: product.serverApplicationName ?? "codium-server",
     serverDataFolderName: getServerDataFolderName(),
     serverDownloadUrlTemplate: product.serverDownloadUrlTemplate,
   };
@@ -82,15 +75,19 @@ function readProductInfo(): ProductInfo {
 
 function mapArch(uname: string): string {
   switch (uname.trim()) {
-    case "x86_64":
+    case "x86_64": {
       return "x64";
+    }
     case "aarch64":
-    case "arm64":
+    case "arm64": {
       return "arm64";
-    case "armv7l":
+    }
+    case "armv7l": {
       return "armhf";
-    default:
+    }
+    default: {
       return uname.trim();
+    }
   }
 }
 
@@ -105,15 +102,15 @@ function buildServerDownloadUrl(
     );
   }
   return product.serverDownloadUrlTemplate
-    .replace(/\$\{quality\}/g, product.quality)
-    .replace(/\$\{commit\}/g, product.commit)
-    .replace(/\$\{version\}/g, product.version)
-    .replace(/\$\{release\}/g, product.release)
-    .replace(/\$\{os\}/g, os)
-    .replace(/\$\{arch\}/g, arch);
+    .replaceAll("${quality}", product.quality)
+    .replaceAll("${commit}", product.commit)
+    .replaceAll("${version}", product.version)
+    .replaceAll("${release}", product.release)
+    .replaceAll("${os}", os)
+    .replaceAll("${arch}", arch);
 }
 
-async function dockerExecCapture(
+function dockerExecCapture(
   containerId: string,
   user: string | undefined,
   argv: string[],
@@ -209,13 +206,13 @@ async function ensureServerRunning(
     'echo "PORT=$P"',
   ].join("\n");
   const res = await dockerExecCapture(containerId, user, ["sh", "-c", script]);
-  const match = res.stdout.match(/PORT=(\d+)/);
+  const match = /PORT=(?<port>\d+)/u.exec(res.stdout);
   if (res.code !== 0 || !match) {
     throw new Error(
       `Failed to start server in container: ${res.stderr.trim() || `exit code ${res.code}`}`,
     );
   }
-  return Number(match[1]);
+  return Number(match.groups?.port);
 }
 
 async function installExtensionsInContainer(
@@ -225,7 +222,9 @@ async function installExtensionsInContainer(
   product: ProductInfo,
   extensions: string[],
 ): Promise<void> {
-  if (extensions.length === 0) return;
+  if (extensions.length === 0) {
+    return;
+  }
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
   const args = ["sh", "-c", `"${serverBin}" "$@"`, "sh"];
   for (const id of extensions) {
@@ -342,9 +341,13 @@ function startSshAgentBridge(
   product: ProductInfo,
 ): string | undefined {
   const authSock = process.env.SSH_AUTH_SOCK;
-  if (!authSock) return undefined;
+  if (!authSock) {
+    return undefined;
+  }
   const agentSock = `${home}/.${EXTENSION_ID}-ssh-agent.sock`;
-  if (agentBridges.get(containerId)) return agentSock;
+  if (agentBridges.get(containerId)) {
+    return agentSock;
+  }
 
   const nodeBin = `${home}/${product.serverDataFolderName}/bin/${product.commit}/node`;
   const containerScript = fs.readFileSync(
@@ -382,11 +385,15 @@ function startSshAgentBridge(
   child.stdout.on("data", (d: Buffer) => {
     buf = Buffer.concat([buf, d]);
     for (;;) {
-      if (buf.length < 9) break;
+      if (buf.length < 9) {
+        break;
+      }
       const type = buf.readUInt8(0);
       const id = buf.readUInt32BE(1);
       const len = buf.readUInt32BE(5);
-      if (buf.length < 9 + len) break;
+      if (buf.length < 9 + len) {
+        break;
+      }
       const payload = buf.subarray(9, 9 + len);
       buf = buf.subarray(9 + len);
       if (type === 0) {
@@ -394,10 +401,14 @@ function startSshAgentBridge(
         channels.set(id, host);
         host.on("data", (x: Buffer) => send(1, id, x));
         host.on("close", () => {
-          if (channels.delete(id)) send(2, id);
+          if (channels.delete(id)) {
+            send(2, id);
+          }
         });
         host.on("error", () => {
-          if (channels.delete(id)) send(2, id);
+          if (channels.delete(id)) {
+            send(2, id);
+          }
         });
       } else if (type === 1) {
         channels.get(id)?.write(payload);
@@ -413,7 +424,9 @@ function startSshAgentBridge(
   child.stderr.on("data", (d: Buffer) => getLog().append(d.toString()));
   const cleanup = () => {
     agentBridges.delete(containerId);
-    for (const s of channels.values()) s.destroy();
+    for (const s of channels.values()) {
+      s.destroy();
+    }
     channels.clear();
   };
   child.on("error", (err) => {
@@ -554,22 +567,19 @@ export function registerRemoteResolver(
         // Setup output is streamed into a read-only terminal inside here, but only on first
         // connect: reconnecting to an already-provisioned container connects silently.
         return await prepareContainerConnection(context, localFolder, up);
-      } catch (err: any) {
-        const message = err?.message ?? String(err);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         getLog().appendLine(`Error: ${message}`);
         throw vscode.RemoteAuthorityResolverError.NotAvailable(message, true);
       }
     },
   };
 
-  const disposables: vscode.Disposable[] = [];
-  disposables.push(
+  return [
     vscode.workspace.registerRemoteAuthorityResolver(
       AUTHORITY_PREFIX,
       resolver,
     ),
-  );
-  disposables.push(
     vscode.workspace.registerResourceLabelFormatter({
       scheme: "vscode-remote",
       authority: `${AUTHORITY_PREFIX}+*`,
@@ -581,8 +591,7 @@ export function registerRemoteResolver(
         stripPathStartingSeparator: false,
       },
     }),
-  );
-  return disposables;
+  ] satisfies vscode.Disposable[];
 }
 
 // Bring the container up so we know its in-container workspace path, then open a window
@@ -595,9 +604,11 @@ export async function openFolderInContainer(
 ): Promise<void> {
   resetLog();
   logBuildInfo();
+
   const up = await withLogTerminal("Devcontainer Configuration", () =>
     devcontainerUp(context, localFolder, { rebuild: forceRebuild }),
   );
+
   const authority = encodeAuthority(localFolder);
   const folder =
     up.remoteWorkspaceFolder || `/workspaces/${path.basename(localFolder)}`;

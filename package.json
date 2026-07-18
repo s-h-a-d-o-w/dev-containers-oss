@@ -22,17 +22,18 @@
     "dist/**",
     "package.json",
     "README.md",
-    "LICENSE",
-    "NEWS.md"
+    "LICENSE"
   ],
   "main": "./dist/extension.js",
   "scripts": {
-    "build": "node esbuild.mts --production",
     "dev": "node esbuild.mts --watch",
     "lint": "oxlint --report-unused-disable-directives-severity=error",
+    "format": "oxfmt",
+    "typecheck": "tsc --noEmit",
+    "vsce:package": "vsce package",
+    "build": "node esbuild.mts --production",
     "package": "pnpm build",
-    "prepare": "husky",
-    "typecheck": "tsc --noEmit"
+    "prepare": "husky"
   },
   "dependencies": {
     "@devcontainers/cli": "^0.87.0"

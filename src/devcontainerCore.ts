@@ -1,7 +1,12 @@
-import * as vscode from "vscode";
-import * as path from "path";
-import { spawn } from "child_process";
-import { EXTENSION_ID } from "./constants";
+import vscode from "vscode";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { EXTENSION_ID } from "./constants.ts";
+
+export type DevcontainerLog = {
+  append: (value: string) => void;
+  appendLine: (value: string) => void;
+};
 
 export type DevcontainerUpResult = {
   containerId: string;
@@ -14,12 +19,16 @@ export type DevcontainerCustomizations = {
   settings: Record<string, unknown>;
 };
 
+let logBuffer = "";
+let logSink: ((chunk: string) => void) | undefined;
+let isDev = false;
+
 export function getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
   return vscode.workspace.workspaceFolders?.[0];
 }
 
 export function getHomeDir(): string {
-  return process.env.HOME || process.env.USERPROFILE || "";
+  return process.env.HOME ?? process.env.USERPROFILE ?? "";
 }
 
 export function getDevcontainerPath(wsFsPath: string): string {
@@ -33,9 +42,28 @@ declare const __BUILD_INFO__:
   | undefined;
 
 export function getBuildInfo(): { version: string; buildTimestamp: number } {
-  return typeof __BUILD_INFO__ !== "undefined"
-    ? __BUILD_INFO__
-    : { version: "unknown", buildTimestamp: 0 };
+  return __BUILD_INFO__ ?? { version: "unknown", buildTimestamp: 0 };
+}
+
+let logger: DevcontainerLog | undefined;
+
+// Central log target for all devcontainer setup output. Every write is buffered (so the
+// full session log can be handed off and replayed in a terminal after the folder reopens
+// over SSH) and, while a build is in progress, streamed straight into that build's terminal
+// via the sink set by withLogTerminal. There is deliberately no Output channel: setup
+// output only ever surfaces in the read-only build terminal, matching Cursor and VS Code.
+export function getLog(): DevcontainerLog {
+  logger ??= {
+    append(value) {
+      logBuffer += value;
+      logSink?.(value);
+    },
+    appendLine(value) {
+      logBuffer += value + "\n";
+      logSink?.(value + "\n");
+    },
+  };
+  return logger;
 }
 
 // Write the current build's version and timestamp to the log. Called at the very start of
@@ -46,10 +74,6 @@ export function logBuildInfo(): void {
     `Dev Containers OSS v${version} (built @ ${new Date(buildTimestamp).toLocaleString()})`,
   );
 }
-
-let logBuffer = "";
-let logSink: ((chunk: string) => void) | undefined;
-let isDev = false;
 
 // Enable extra, developer-facing log output (e.g. the raw commands being spawned). Set from
 // activate() based on the extension's ExtensionMode so it only shows while developing.
@@ -65,77 +89,6 @@ export function getBufferedLog(): string {
   return logBuffer;
 }
 
-// The devcontainer CLI runs with --log-format json, so its lines look like
-// {"type":"text","level":2,"timestamp":...,"text":"..."}. For a human-readable log we
-// unwrap the `text` field of those lines and leave everything else (plain SSH setup
-// output) untouched.
-export function toReadableLog(raw: string): string {
-  return raw
-    .split(/\r?\n/)
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("{")) return line;
-      try {
-        const obj = JSON.parse(trimmed);
-        if (obj && typeof obj === "object" && typeof obj.text === "string") {
-          return obj.text.replace(/\r?\n$/, "");
-        }
-      } catch {
-        // not a JSON log line; keep as-is
-      }
-      return line;
-    })
-    .join("\n");
-}
-
-export type DevcontainerLog = {
-  append: (value: string) => void;
-  appendLine: (value: string) => void;
-};
-
-let logger: DevcontainerLog | undefined;
-
-// Central log target for all devcontainer setup output. Every write is buffered (so the
-// full session log can be handed off and replayed in a terminal after the folder reopens
-// over SSH) and, while a build is in progress, streamed straight into that build's terminal
-// via the sink set by withLogTerminal. There is deliberately no Output channel: setup
-// output only ever surfaces in the read-only build terminal, matching Cursor and VS Code.
-export function getLog(): DevcontainerLog {
-  if (!logger) {
-    logger = {
-      append(value) {
-        logBuffer += value;
-        logSink?.(value);
-      },
-      appendLine(value) {
-        logBuffer += value + "\n";
-        logSink?.(value + "\n");
-      },
-    };
-  }
-  return logger;
-}
-
-// Run `fn` while streaming all log output into a fresh read-only terminal, then finish the
-// terminal. This is the only place setup output is shown, mirroring the official Dev
-// Containers extension: a terminal, only while building/configuring.
-export async function withLogTerminal<T>(
-  name: string,
-  fn: () => Promise<T>,
-): Promise<T> {
-  const term = createLogTerminal(name);
-  // Replay anything already logged this session (e.g. the build-info line written right
-  // after resetLog, before this terminal existed) so nothing logged pre-terminal is lost.
-  if (logBuffer) term.write(logBuffer);
-  logSink = (chunk) => term.write(chunk);
-  try {
-    return await fn();
-  } finally {
-    term.finish();
-    logSink = undefined;
-  }
-}
-
 // Render setup output in a read-only terminal, mirroring the official Dev Containers
 // extension. A Pseudoterminal has no live shell for the user to type into; writes made
 // before the terminal is opened are buffered so nothing is lost. Once finish() is called,
@@ -145,14 +98,18 @@ export function createLogTerminal(name: string): {
   finish: () => void;
 } {
   const writeEmitter = new vscode.EventEmitter<string>();
+  // oxlint-disable-next-line typescript/no-invalid-void-type
   const closeEmitter = new vscode.EventEmitter<number | void>();
   let opened = false;
   let finished = false;
   let pending = "";
   const emit = (text: string) => {
-    const body = text.replace(/\r?\n/g, "\r\n");
-    if (opened) writeEmitter.fire(body);
-    else pending += body;
+    const body = text.replaceAll(/\r?\n/gu, "\r\n");
+    if (opened) {
+      writeEmitter.fire(body);
+    } else {
+      pending += body;
+    }
   };
   const pty: vscode.Pseudoterminal = {
     onDidWrite: writeEmitter.event,
@@ -165,9 +122,13 @@ export function createLogTerminal(name: string): {
       }
     },
     handleInput() {
-      if (finished) closeEmitter.fire();
+      if (finished) {
+        closeEmitter.fire();
+      }
     },
-    close() {},
+    close() {
+      /* empty */
+    },
   };
   const terminal = vscode.window.createTerminal({ name, pty });
   terminal.show();
@@ -182,6 +143,28 @@ export function createLogTerminal(name: string): {
   };
 }
 
+// Run `fn` while streaming all log output into a fresh read-only terminal, then finish the
+// terminal. This is the only place setup output is shown, mirroring the official Dev
+// Containers extension: a terminal, only while building/configuring.
+export async function withLogTerminal<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const term = createLogTerminal(name);
+  // Replay anything already logged this session (e.g. the build-info line written right
+  // after resetLog, before this terminal existed) so nothing logged pre-terminal is lost.
+  if (logBuffer) {
+    term.write(logBuffer);
+  }
+  logSink = (chunk) => term.write(chunk);
+  try {
+    return await fn();
+  } finally {
+    term.finish();
+    logSink = undefined;
+  }
+}
+
 // Quiet commands are housekeeping calls whose output is irrelevant to the user (e.g. reading
 // the container's home directory). They stay hidden from the build terminal in production but
 // are still shown while developing the extension, where seeing everything aids debugging.
@@ -190,7 +173,9 @@ function shouldStream(quiet?: boolean): boolean {
 }
 
 function logCommand(command: string, args: string[]) {
-  if (!isDev) return;
+  if (!isDev) {
+    return;
+  }
   const out = getLog();
   const printable = [command, ...args].join(" ");
   out.appendLine("");
@@ -199,8 +184,8 @@ function logCommand(command: string, args: string[]) {
 
 function makeWorkspaceSlug(wsFsPath: string): string {
   const name = path.basename(wsFsPath).toLowerCase();
-  let slug = name.replace(/[^a-z0-9._-]+/g, "-");
-  slug = slug.replace(/^[._-]+|[._-]+$/g, "");
+  let slug = name.replaceAll(/[^a-z0-9._-]+/gu, "-");
+  slug = slug.replaceAll(/^[._-]+|[._-]+$/gu, "");
   return slug || "workspace";
 }
 
@@ -221,7 +206,9 @@ export function runCommand(
 ): Promise<void> {
   const out = getLog();
   const stream = shouldStream(quiet);
-  if (stream) logCommand(command, args);
+  if (stream) {
+    logCommand(command, args);
+  }
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
@@ -232,21 +219,28 @@ export function runCommand(
       child.stdin.write(input);
       child.stdin.end();
     }
-    child.stdout.on("data", (d) => {
-      if (stream) out.append(d.toString());
+    child.stdout.on("data", (d: Buffer) => {
+      if (stream) {
+        out.append(d.toString());
+      }
     });
-    child.stderr.on("data", (d) => {
-      if (stream) out.append(d.toString());
+    child.stderr.on("data", (d: Buffer) => {
+      if (stream) {
+        out.append(d.toString());
+      }
     });
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${command} exited with code ${code}`));
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${command} exited with code ${code}`));
+      }
     });
   });
 }
 
-export async function runCommandCapture(
+export function runCommandCapture(
   command: string,
   args: string[],
   {
@@ -257,7 +251,9 @@ export async function runCommandCapture(
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const out = getLog();
   const stream = shouldStream(quiet);
-  if (stream) logCommand(command, args);
+  if (stream) {
+    logCommand(command, args);
+  }
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
@@ -266,15 +262,19 @@ export async function runCommandCapture(
     });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (d) => {
+    child.stdout.on("data", (d: Buffer) => {
       const s = d.toString();
       stdout += s;
-      if (stream) out.append(s);
+      if (stream) {
+        out.append(s);
+      }
     });
-    child.stderr.on("data", (d) => {
+    child.stderr.on("data", (d: Buffer) => {
       const s = d.toString();
       stderr += s;
-      if (stream) out.append(s);
+      if (stream) {
+        out.append(s);
+      }
     });
     child.on("error", () => resolve({ stdout: "", stderr: "error", code: 1 }));
     child.on("close", (code) => resolve({ stdout, stderr, code: code ?? 1 }));
@@ -321,19 +321,25 @@ export function runEditorCliCapture(
   });
 }
 
-// With --log-format json the CLI emits JSON log lines plus a final result object.
-// The result is the last line that parses to an object carrying the given key.
+// The CLI writes its final result object to stdout as JSON (independent of the log
+// format used for progress output). The result is the last line that parses to an
+// object carrying the given key.
 function findResultObject(output: string, key: string) {
   const lines = output
-    .split(/\r?\n/)
+    .split(/\r?\n/u)
     .map((l) => l.trim())
     .filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
-    if (!line.startsWith("{")) continue;
+    if (!line.startsWith("{")) {
+      continue;
+    }
     try {
-      const obj = JSON.parse(line);
-      if (obj && typeof obj === "object" && key in obj) return obj;
+      // oxlint-disable-next-line typescript/no-explicit-any
+      const obj = JSON.parse(line) as Record<string, any>;
+      if (typeof obj === "object" && key in obj) {
+        return obj;
+      }
     } catch {
       // not the result line
     }
@@ -357,11 +363,14 @@ export async function devcontainerUp(
   if (options?.rebuild) {
     vscode.window.showInformationMessage("Rebuilding devcontainer...");
   }
-  const res = await runCliCapture(ctx, args, { cwd: wsFsPath });
-  const result = parseUpResult(res.stdout) ?? parseUpResult(res.stderr);
-  if (res.code !== 0 || !result || result.outcome !== "success") {
-    const detail =
-      result?.message || result?.description || `exit code ${res.code}`;
+  const { code, stderr, stdout } = await runCliCapture(ctx, args, {
+    cwd: wsFsPath,
+  });
+  const result = parseUpResult(stdout) ?? parseUpResult(stderr);
+  if (code !== 0 || result?.outcome !== "success") {
+    const detail = (result?.message ??
+      result?.description ??
+      `exit code ${code}`) as string;
     throw new Error(`devcontainer up failed: ${detail}`);
   }
   if (!result.containerId) {
@@ -370,10 +379,14 @@ export async function devcontainerUp(
     );
   }
   return {
-    containerId: result.containerId,
-    remoteUser: result.remoteUser || "",
-    remoteWorkspaceFolder: result.remoteWorkspaceFolder || "",
+    containerId: result.containerId as string,
+    remoteUser: (result.remoteUser ?? "") as string,
+    remoteWorkspaceFolder: (result.remoteWorkspaceFolder ?? "") as string,
   };
+}
+
+function isEntryObject(entry: unknown): entry is Record<string, unknown> {
+  return typeof entry === "object" && entry !== null;
 }
 
 // The merged configuration folds together the top-level devcontainer.json, image
@@ -394,31 +407,38 @@ export async function readMergedCustomizations(
   let res: { stdout: string; stderr: string; code: number };
   try {
     res = await runCliCapture(ctx, args, { cwd: wsFsPath });
-  } catch (err: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     getLog().appendLine(
-      `Could not read devcontainer customizations: ${err?.message ?? String(err)}`,
+      `Could not read devcontainer customizations: ${message}`,
     );
     return empty;
   }
   const result =
     findResultObject(res.stdout, "mergedConfiguration") ??
     findResultObject(res.stderr, "mergedConfiguration");
-  const vscodeEntries = result?.mergedConfiguration?.customizations?.vscode;
+  // oxlint-disable-next-line typescript/no-unsafe-member-access
+  const vscodeEntries = result?.mergedConfiguration?.customizations
+    ?.vscode as unknown;
   if (!Array.isArray(vscodeEntries)) {
     return empty;
   }
   const extensions: string[] = [];
-  let settings: Record<string, unknown> = {};
+  const settings: Record<string, unknown> = {};
   for (const entry of vscodeEntries) {
-    if (!entry || typeof entry !== "object") continue;
+    if (!isEntryObject(entry)) {
+      continue;
+    }
     if (Array.isArray(entry.extensions)) {
       for (const ext of entry.extensions) {
-        if (typeof ext === "string") extensions.push(ext);
+        if (typeof ext === "string") {
+          extensions.push(ext);
+        }
       }
     }
     if (entry.settings && typeof entry.settings === "object") {
-      settings = { ...settings, ...entry.settings };
+      Object.assign(settings, entry.settings);
     }
   }
-  return { extensions: Array.from(new Set(extensions)), settings };
+  return { extensions: [...new Set(extensions)], settings };
 }

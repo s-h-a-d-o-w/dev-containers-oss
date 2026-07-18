@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
@@ -9,20 +9,6 @@ const pkg = JSON.parse(
   fs.readFileSync(path.join(import.meta.dirname, "package.json"), "utf8"),
 ) as { version: string };
 const buildTimestamp = Date.now();
-
-const clean: esbuild.Plugin = {
-  name: "clean",
-  setup(build) {
-    build.onStart(() => {
-      fs.rmSync(path.join(import.meta.dirname, "dist"), {
-        recursive: true,
-        force: true,
-      });
-      copyDevcontainerCli();
-      copyAgentBridgeScript();
-    });
-  },
-};
 
 // The devcontainer CLI is a single self-contained bundle. Ship it alongside the
 // extension so it can be spawned as a Node script at runtime. The CLI resolves its
@@ -75,6 +61,20 @@ function copyAgentBridgeScript() {
   console.log(`Copied agent bridge script to ${dest}`);
 }
 
+const clean: esbuild.Plugin = {
+  name: "clean",
+  setup(build) {
+    build.onStart(() => {
+      fs.rmSync(path.join(import.meta.dirname, "dist"), {
+        recursive: true,
+        force: true,
+      });
+      copyDevcontainerCli();
+      copyAgentBridgeScript();
+    });
+  },
+};
+
 async function main() {
   const ctx = await esbuild.context({
     entryPoints: ["src/extension.ts"],
@@ -105,7 +105,7 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e);
+await main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

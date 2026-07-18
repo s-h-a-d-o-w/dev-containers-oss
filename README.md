@@ -2,6 +2,8 @@
 
 Alternative to the proprietary VS Code Dev Containers extension for VSCodium and other VS Code-based IDEs that don't have their own solution. Uses the open-source [Dev Containers CLI](https://github.com/devcontainers/cli) to build/run your container per the full devcontainer spec, then opens your folder inside it either natively or over SSH.
 
+**Note that this uses proposed vscode APIs (just like the official extension), which are subject to change at any time. Which means that any IDE update may break functionality in this extension. (I hope that it will be simple enough to update the API and make adjustments should it ever become necessary but... you should be aware of this risk.)**
+
 ## Getting started
 
 Requirements are the same as official, see: https://code.visualstudio.com/docs/devcontainers/containers#_system-requirements

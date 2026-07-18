@@ -9,14 +9,14 @@
 // Frames are [type:u8][channel:u32be][len:u32be][payload]. This side opens channels
 // (type 0) as apps connect; both sides exchange data (type 1) and close (type 2).
 
-const net = require("net");
-const fs = require("fs");
+const net = require("node:net");
+const fs = require("node:fs");
 
-const SOCK = process.argv[1];
+const [, SOCK] = process.argv;
 
 try {
   fs.unlinkSync(SOCK);
-} catch (e) {
+} catch {
   // Nothing to clean up if the socket does not already exist.
 }
 
@@ -30,6 +30,7 @@ let buf = Buffer.alloc(0);
  * @param {number} id
  * @param {Buffer} [payload]
  */
+// oxlint-disable-next-line no-implicit-globals
 function send(type, id, payload) {
   const header = Buffer.alloc(9);
   header.writeUInt8(type, 0);
@@ -42,18 +43,22 @@ process.stdin.on("data", (data) => {
   const chunk = typeof data === "string" ? Buffer.from(data) : data;
   buf = Buffer.concat([buf, chunk]);
   for (;;) {
-    if (buf.length < 9) break;
+    if (buf.length < 9) {
+      break;
+    }
     const type = buf.readUInt8(0);
     const id = buf.readUInt32BE(1);
     const len = buf.readUInt32BE(5);
-    if (buf.length < 9 + len) break;
+    if (buf.length < 9 + len) {
+      break;
+    }
     const payload = buf.subarray(9, 9 + len);
     buf = buf.subarray(9 + len);
     const socket = channels[id];
-    if (type === 1) {
-      if (socket) socket.write(payload);
-    } else if (type === 2) {
-      if (socket) {
+    if (socket) {
+      if (type === 1) {
+        socket.write(payload);
+      } else if (type === 2) {
         delete channels[id];
         socket.end();
       }
@@ -67,7 +72,9 @@ const srv = net.createServer((socket) => {
   const id = nextId++;
   channels[id] = socket;
   send(0, id);
-  socket.on("data", (d) => send(1, id, d));
+  socket.on("data", (data) =>
+    send(1, id, typeof data === "string" ? Buffer.from(data) : data),
+  );
   socket.on("close", () => {
     if (channels[id]) {
       delete channels[id];
@@ -90,7 +97,7 @@ srv.on("error", (e) => {
 srv.listen(SOCK, () => {
   try {
     fs.chmodSync(SOCK, 0o600);
-  } catch (e) {
+  } catch {
     // chmod is best-effort; the socket still works without it.
   }
 });

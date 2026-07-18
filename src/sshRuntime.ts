@@ -1,7 +1,7 @@
-import * as vscode from "vscode";
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
+import vscode from "vscode";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   DevcontainerCustomizations,
   getBufferedLog,
@@ -11,9 +11,9 @@ import {
   runCommand,
   runCommandCapture,
   runEditorCliCapture,
-  toReadableLog,
 } from "./devcontainerCore";
 import { EXTENSION_ID } from "./constants";
+import { ProductInfo } from "./types";
 
 // Local (host-side) marker whose presence tells the reopened window to display the log
 // once, and whose contents carry the log text itself. The reopened window runs this
@@ -31,19 +31,27 @@ export function getHandoffMarkerPath(hostAlias: string): string {
 // is stable and can be parsed back out.
 function getContainerIdFromSshConfig(hostAlias: string): string | undefined {
   const sshConfigPath = path.join(getHomeDir(), ".ssh", "config");
-  if (!fs.existsSync(sshConfigPath)) return undefined;
-  const configText = fs.readFileSync(sshConfigPath, "utf-8");
-  const escapedAlias = hostAlias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!fs.existsSync(sshConfigPath)) {
+    return undefined;
+  }
+  const configText = fs.readFileSync(sshConfigPath, "utf8");
+  const escapedAlias = hostAlias.replaceAll(
+    /[.*+?^${}()|[\]\\]/gu,
+    String.raw`\$&`,
+  );
   const blockRegex = new RegExp(
     `^Host[ \\t]+${escapedAlias}[ \\t]*\\r?\\n(?:(?!^Host[ \\t]).*(?:\\r?\\n|$))*`,
-    "m",
+    "mu",
   );
   const block = configText.match(blockRegex)?.[0];
-  if (!block) return undefined;
-  const proxyMatch = block.match(
-    /ProxyCommand\s+docker\s+exec\s+.*?\s(\S+)\s+\/usr\/sbin\/sshd/,
-  );
-  return proxyMatch?.[1];
+  if (!block) {
+    return undefined;
+  }
+  const proxyMatch =
+    /ProxyCommand\s+docker\s+exec\s+.*?\s(?<containerId>\S+)\s+\/usr\/sbin\/sshd/u.exec(
+      block,
+    );
+  return proxyMatch?.groups?.containerId;
 }
 
 // When rebuild/reopen is triggered from a window already connected to the container,
@@ -56,7 +64,9 @@ export async function resolveLocalWorkspaceFolder(
   hostAlias: string,
 ): Promise<string | undefined> {
   const containerId = getContainerIdFromSshConfig(hostAlias);
-  if (!containerId) return undefined;
+  if (!containerId) {
+    return undefined;
+  }
   const res = await runCommandCapture(
     "docker",
     [
@@ -67,7 +77,9 @@ export async function resolveLocalWorkspaceFolder(
     ],
     { quiet: true },
   );
-  if (res.code !== 0) return undefined;
+  if (res.code !== 0) {
+    return undefined;
+  }
   const localFolder = res.stdout.trim();
   return localFolder || undefined;
 }
@@ -91,7 +103,9 @@ async function getContainerUsername(containerId: string): Promise<string> {
     { quiet: true },
   );
   const user = result.stdout.trim();
-  if (user) return user;
+  if (user) {
+    return user;
+  }
   vscode.window.showWarningMessage(
     "Could not detect container user. Falling back to 'root'.",
   );
@@ -116,7 +130,9 @@ export async function getUserHome(
     { quiet: true },
   );
   const home = res.stdout.trim();
-  if (home) return home;
+  if (home) {
+    return home;
+  }
   return user === "root" ? "/root" : `/home/${user}`;
 }
 
@@ -185,7 +201,7 @@ async function ensureAuthorizedKeyInContainer(
   pubKeyPath: string,
 ): Promise<void> {
   const home = await getUserHome(containerId, user);
-  const keyData = fs.readFileSync(pubKeyPath, "utf-8").trim() + "\n";
+  const keyData = fs.readFileSync(pubKeyPath, "utf8").trim() + "\n";
   const script = [
     "set -e",
     'KEY="$(cat)"',
@@ -207,9 +223,13 @@ export async function ensureKnownHostsInContainer(
   user: string,
 ): Promise<void> {
   const hostKnownHosts = path.join(getHomeDir(), ".ssh", "known_hosts");
-  if (!fs.existsSync(hostKnownHosts)) return;
-  const data = fs.readFileSync(hostKnownHosts, "utf-8");
-  if (!data.trim()) return;
+  if (!fs.existsSync(hostKnownHosts)) {
+    return;
+  }
+  const data = fs.readFileSync(hostKnownHosts, "utf8");
+  if (!data.trim()) {
+    return;
+  }
   const home = await getUserHome(containerId, user);
   const script = [
     "set -e",
@@ -233,9 +253,13 @@ export async function ensureGitConfigInContainer(
   user: string,
 ): Promise<void> {
   const hostGitConfig = path.join(getHomeDir(), ".gitconfig");
-  if (!fs.existsSync(hostGitConfig)) return;
-  const data = fs.readFileSync(hostGitConfig, "utf-8");
-  if (!data.trim()) return;
+  if (!fs.existsSync(hostGitConfig)) {
+    return;
+  }
+  const data = fs.readFileSync(hostGitConfig, "utf8");
+  if (!data.trim()) {
+    return;
+  }
   const home = await getUserHome(containerId, user);
   const script = [
     "set -e",
@@ -253,7 +277,9 @@ async function verifySshLogin(hostAlias: string): Promise<boolean> {
     ["-o", "BatchMode=yes", hostAlias, "true"],
     { quiet: true },
   );
-  if (res.code === 0) return true;
+  if (res.code === 0) {
+    return true;
+  }
   if (res.stderr.includes("Bad configuration option")) {
     vscode.window.showWarningMessage(
       "SSH config parsing failed due to an invalid option in ~/.ssh/config. Comment out or remove non-standard options, then retry.",
@@ -266,10 +292,10 @@ async function verifySshLogin(hostAlias: string): Promise<boolean> {
   return false;
 }
 
-export async function getEffectiveUser(
+export function getEffectiveUser(
   containerId: string,
   remoteUser?: string,
-): Promise<string> {
+): string | Promise<string> {
   if (remoteUser) {
     return remoteUser;
   }
@@ -324,7 +350,7 @@ function ensureSshConfigHostAlias(
   const sshConfigPath = path.join(sshDir, "config");
   fs.mkdirSync(sshDir, { recursive: true });
   let configText = fs.existsSync(sshConfigPath)
-    ? fs.readFileSync(sshConfigPath, "utf-8")
+    ? fs.readFileSync(sshConfigPath, "utf8")
     : "";
   const forwardAgent = vscode.workspace
     .getConfiguration(EXTENSION_ID)
@@ -339,12 +365,15 @@ function ensureSshConfigHostAlias(
     "",
   ].join("\n");
 
-  const escapedAlias = hostAlias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedAlias = hostAlias.replaceAll(
+    /[.*+?^${}()|[\]\\]/gu,
+    String.raw`\$&`,
+  );
   // JavaScript regex has no \Z anchor, so match the Host line plus every following
   // line that does not start a new Host block (covering the last block up to EOF).
   const blockRegex = new RegExp(
     `^Host[ \\t]+${escapedAlias}[ \\t]*\\r?\\n(?:(?!^Host[ \\t]).*(?:\\r?\\n|$))*`,
-    "m",
+    "mu",
   );
   if (blockRegex.test(configText)) {
     configText = configText.replace(blockRegex, block);
@@ -362,7 +391,9 @@ async function ensureSshRemoteExtensionAvailable() {
   const hasSshRemote = sshExtCandidates.some((id) =>
     vscode.extensions.getExtension(id),
   );
-  if (hasSshRemote) return;
+  if (hasSshRemote) {
+    return;
+  }
 
   // ms-vscode-remote.remote-ssh only runs on official Microsoft builds. Every other
   // build (VSCodium/Codium, Positron, Cursor, ...) must use the open-source alternative,
@@ -391,31 +422,40 @@ async function ensureSshRemoteExtensionAvailable() {
 // The SSH remote extension installs each container's VS Code server under a
 // product-specific folder in the user's home (e.g. .vscode-server, .vscodium-server,
 // .cursor-server). The name comes from the running client's product.json, so we read
-// it there and fall back to an appName heuristic.
+// serverDataFolderName there and fall back to an appName heuristic. We intentionally do
+// not derive it from applicationName: the mapping is not `.${applicationName}-server`
+// (VS Code's is .vscode-server not .code-server, VSCodium's is .vscodium-server), so
+// guessing that way would produce the wrong folder.
 export function getServerDataFolderName(): string {
   try {
     const productJsonPath = path.join(vscode.env.appRoot, "product.json");
-    const product = JSON.parse(fs.readFileSync(productJsonPath, "utf-8"));
+    const product = JSON.parse(
+      fs.readFileSync(productJsonPath, "utf8"),
+    ) as Partial<ProductInfo>;
     if (
       typeof product.serverDataFolderName === "string" &&
       product.serverDataFolderName
     ) {
       return product.serverDataFolderName;
     }
-    if (
-      typeof product.applicationName === "string" &&
-      product.applicationName
-    ) {
-      return `.${product.applicationName}-server`;
-    }
   } catch {
     // fall through to the appName heuristic below
   }
   const appName = (vscode.env.appName || "").toLowerCase();
-  if (appName.includes("cursor")) return ".cursor-server";
-  if (appName.includes("positron")) return ".positron-server";
-  if (appName.includes("codium")) return ".vscodium-server";
-  return ".vscode-server";
+  // Insiders/pre-release builds append a "-insiders" suffix to the server folder
+  // (e.g. .vscode-server-insiders, .vscodium-server-insiders); Cursor/Positron do not
+  // ship such builds, so the suffix only matters for VS Code and VSCodium.
+  const suffix = appName.includes("insiders") ? "-insiders" : "";
+  if (appName.includes("cursor")) {
+    return ".cursor-server";
+  }
+  if (appName.includes("positron")) {
+    return ".positron-server";
+  }
+  if (appName.includes("codium")) {
+    return `.vscodium-server${suffix}`;
+  }
+  return `.vscode-server${suffix}`;
 }
 
 // Feature/devcontainer extensions are installed directly onto this container's remote
@@ -426,7 +466,9 @@ async function installRemoteExtensions(
   hostAlias: string,
   extensions: string[],
 ): Promise<void> {
-  if (extensions.length === 0) return;
+  if (extensions.length === 0) {
+    return;
+  }
   const args = ["--remote", `ssh-remote+${hostAlias}`];
   for (const id of extensions) {
     args.push("--install-extension", id);
@@ -450,7 +492,9 @@ export async function applyRemoteMachineSettings(
   user: string,
   settings: Record<string, unknown>,
 ): Promise<void> {
-  if (Object.keys(settings).length === 0) return;
+  if (Object.keys(settings).length === 0) {
+    return;
+  }
   const home = await getUserHome(containerId, user);
   const serverFolder = getServerDataFolderName();
   const settingsDir = `${home}/${serverFolder}/data/Machine`;
@@ -474,7 +518,7 @@ export async function applyRemoteMachineSettings(
   let parseFailed = false;
   if (trimmed) {
     try {
-      merged = JSON.parse(trimmed);
+      merged = JSON.parse(trimmed) as Record<string, unknown>;
     } catch {
       parseFailed = true;
       getLog().appendLine(
@@ -484,7 +528,7 @@ export async function applyRemoteMachineSettings(
   }
   // Feature/devcontainer settings take precedence over whatever we wrote previously.
   const finalSettings = { ...merged, ...settings };
-  const contents = JSON.stringify(finalSettings, null, 2) + "\n";
+  const contents = JSON.stringify(finalSettings, undefined, 2) + "\n";
 
   const script = [
     "set -e",
@@ -524,10 +568,7 @@ export async function openWorkspaceOverSsh(
     return;
   }
   await installRemoteExtensions(hostAlias, customizations.extensions);
-  fs.writeFileSync(
-    getHandoffMarkerPath(hostAlias),
-    toReadableLog(getBufferedLog()),
-  );
+  fs.writeFileSync(getHandoffMarkerPath(hostAlias), getBufferedLog());
   const folder =
     remoteWorkspaceFolder || `/workspaces/${path.basename(wsFsPath)}`;
   const remoteUri = vscode.Uri.parse(

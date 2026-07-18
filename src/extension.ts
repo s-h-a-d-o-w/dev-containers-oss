@@ -1,5 +1,5 @@
-import * as vscode from "vscode";
-import * as fs from "fs";
+import vscode from "vscode";
+import fs from "node:fs";
 import {
   createLogTerminal,
   devcontainerUp,
@@ -9,19 +9,19 @@ import {
   resetLog,
   setDevMode,
   withLogTerminal,
-} from "./devcontainerCore";
+} from "./devcontainerCore.ts";
 import {
   getHandoffMarkerPath,
   openWorkspaceOverSsh,
   resolveLocalWorkspaceFolder,
-} from "./sshRuntime";
+} from "./sshRuntime.ts";
 import {
   AUTHORITY_PREFIX,
   decodeLocalFolder,
   openFolderInContainer,
   registerRemoteResolver,
-} from "./containerRuntime";
-import { EXTENSION_ID } from "./constants";
+} from "./containerRuntime.ts";
+import { EXTENSION_ID } from "./constants.ts";
 
 const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
 const CONTAINER_AUTHORITY_PREFIX = `${AUTHORITY_PREFIX}+`;
@@ -47,29 +47,6 @@ function isNativeRuntimeAvailable(): boolean {
   );
 }
 
-// When the folder has just reopened inside the container over SSH, surface the setup log
-// that the launching window handed off. This extension runs as a UI (local) extension in
-// the reopened window, so the marker lives on the local host and is keyed by the window's
-// host alias; the log itself lives in the container and is shown via a remote terminal.
-// Consuming (deleting) the marker keeps this to the first activation only, so later
-// reloads of the same window do not reopen the terminal.
-function showHandoffLogIfPresent() {
-  if (!vscode.env.remoteName) return;
-  const authority = vscode.workspace.workspaceFolders?.[0]?.uri.authority ?? "";
-  if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) return;
-  const hostAlias = authority.slice(SSH_REMOTE_AUTHORITY_PREFIX.length);
-  const markerPath = getHandoffMarkerPath(hostAlias);
-  if (!fs.existsSync(markerPath)) return;
-  let logText = "";
-  try {
-    logText = fs.readFileSync(markerPath, "utf-8");
-    fs.unlinkSync(markerPath);
-  } catch {
-    // if we cannot read/remove the marker, still show whatever we have
-  }
-  showLogInReadOnlyTerminal(logText);
-}
-
 // Render the handed-off setup log in a read-only terminal that closes on any keypress,
 // mirroring the official Dev Containers extension. The captured text is printed locally
 // (this UI extension cannot cat the container-side file) and, since the log is already
@@ -78,6 +55,64 @@ function showLogInReadOnlyTerminal(logText: string) {
   const term = createLogTerminal("Devcontainer Configuration");
   term.write(logText.endsWith("\n") ? logText : logText + "\n");
   term.finish();
+}
+
+// When the folder has just reopened inside the container over SSH, surface the setup log
+// that the launching window handed off. This extension runs as a UI (local) extension in
+// the reopened window, so the marker lives on the local host and is keyed by the window's
+// host alias; the log itself lives in the container and is shown via a remote terminal.
+// Consuming (deleting) the marker keeps this to the first activation only, so later
+// reloads of the same window do not reopen the terminal.
+function showHandoffLogIfPresent() {
+  if (!vscode.env.remoteName) {
+    return;
+  }
+  const authority = vscode.workspace.workspaceFolders?.[0]?.uri.authority ?? "";
+  if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) {
+    return;
+  }
+  const hostAlias = authority.slice(SSH_REMOTE_AUTHORITY_PREFIX.length);
+  const markerPath = getHandoffMarkerPath(hostAlias);
+  if (!fs.existsSync(markerPath)) {
+    return;
+  }
+  let logText = "";
+  try {
+    logText = fs.readFileSync(markerPath, "utf8");
+    fs.unlinkSync(markerPath);
+  } catch {
+    // if we cannot read/remove the marker, still show whatever we have
+  }
+  showLogInReadOnlyTerminal(logText);
+}
+
+function getConfigUri(ws: vscode.WorkspaceFolder) {
+  return vscode.Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
+}
+
+function getWorkspaceOrThrow(): vscode.WorkspaceFolder {
+  const workspaceFolder = getWorkspaceFolder();
+  if (!workspaceFolder) {
+    throw new Error("No folder open");
+  }
+  return workspaceFolder;
+}
+
+function withUiErrorHandling(
+  action: () => Promise<void>,
+  options?: { appendToOutput?: boolean },
+): () => Promise<void> {
+  return async () => {
+    try {
+      await action();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(message);
+      if (options?.appendToOutput ?? true) {
+        getLog().appendLine(`Error: ${message}`);
+      }
+    }
+  };
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -94,15 +129,13 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(...registerRemoteResolver(context));
   }
 
-  function getConfigUri(ws: vscode.WorkspaceFolder) {
-    return vscode.Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
-  }
-
   // Resolve the config via the VS Code filesystem API rather than Node's fs: while
   // connected this extension runs on the UI (local) host, but the workspace lives on the
   // remote, so fs.existsSync on the remote fsPath would always miss.
   async function hasDevcontainerConfig(ws: vscode.WorkspaceFolder | undefined) {
-    if (!ws) return false;
+    if (!ws) {
+      return false;
+    }
     try {
       await vscode.workspace.fs.stat(getConfigUri(ws));
       return true;
@@ -120,11 +153,14 @@ export function activate(context: vscode.ExtensionContext) {
     );
   }
   // Initialize context and watch for changes to devcontainer.json
-  updateDevcontainerContext();
-  const ws = getWorkspaceFolder();
-  if (ws) {
+  void updateDevcontainerContext();
+  const initialWorkspaceFolder = getWorkspaceFolder();
+  if (initialWorkspaceFolder) {
     const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(ws, ".devcontainer/devcontainer.json"),
+      new vscode.RelativePattern(
+        initialWorkspaceFolder,
+        ".devcontainer/devcontainer.json",
+      ),
     );
     watcher.onDidCreate(updateDevcontainerContext);
     watcher.onDidDelete(updateDevcontainerContext);
@@ -132,45 +168,28 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(watcher);
   }
 
-  function getWorkspaceOrThrow(): vscode.WorkspaceFolder {
-    const ws = getWorkspaceFolder();
-    if (!ws) {
-      throw new Error("No folder open");
-    }
-    return ws;
-  }
-
-  function withUiErrorHandling(
-    action: () => Promise<void>,
-    options?: { appendToOutput?: boolean },
-  ): () => Promise<void> {
-    return async () => {
-      try {
-        await action();
-      } catch (err: any) {
-        const message = err?.message ?? String(err);
-        vscode.window.showErrorMessage(message);
-        if (options?.appendToOutput ?? true) {
-          getLog().appendLine(`Error: ${message}`);
-        }
-      }
-    };
-  }
-
   // The alias of the container this window is connected to, if it is one of ours.
   function getConnectedHostAlias(): string | undefined {
-    if (!vscode.env.remoteName) return undefined;
+    if (!vscode.env.remoteName) {
+      return undefined;
+    }
     const authority = getWorkspaceFolder()?.uri.authority ?? "";
-    if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) return undefined;
+    if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) {
+      return undefined;
+    }
     return authority.slice(SSH_REMOTE_AUTHORITY_PREFIX.length);
   }
 
   // The host-side folder of the native (managed) container this window is connected to, if
   // any. The local path is encoded straight into the authority, so no lookup is needed.
   function getConnectedContainerLocalFolder(): string | undefined {
-    if (!vscode.env.remoteName) return undefined;
+    if (!vscode.env.remoteName) {
+      return undefined;
+    }
     const authority = getWorkspaceFolder()?.uri.authority ?? "";
-    if (!authority.startsWith(CONTAINER_AUTHORITY_PREFIX)) return undefined;
+    if (!authority.startsWith(CONTAINER_AUTHORITY_PREFIX)) {
+      return undefined;
+    }
     return decodeLocalFolder(authority);
   }
 
@@ -275,10 +294,19 @@ export function activate(context: vscode.ExtensionContext) {
   // stale marker cannot fire in an unrelated window.
   async function resumePendingReopenIfAny() {
     const pending = context.globalState.get<PendingReopen>(PENDING_REOPEN_KEY);
-    if (!pending) return;
-    if (vscode.env.remoteName) return;
-    const ws = getWorkspaceFolder();
-    if (!ws || ws.uri.fsPath !== pending.localFolder) return;
+    if (!pending) {
+      return;
+    }
+    if (vscode.env.remoteName) {
+      return;
+    }
+    const workspaceFolder = getWorkspaceFolder();
+    if (
+      !workspaceFolder ||
+      workspaceFolder.uri.fsPath !== pending.localFolder
+    ) {
+      return;
+    }
     await context.globalState.update(PENDING_REOPEN_KEY, undefined);
     await withUiErrorHandling(
       () =>
@@ -288,7 +316,7 @@ export function activate(context: vscode.ExtensionContext) {
       { appendToOutput: false },
     )();
   }
-  resumePendingReopenIfAny();
+  void resumePendingReopenIfAny();
 
   const openFolderInDevcontainer = vscode.commands.registerCommand(
     `${EXTENSION_ID}.openFolderInDevcontainer`,
@@ -343,13 +371,15 @@ export function activate(context: vscode.ExtensionContext) {
     `${EXTENSION_ID}.openDevcontainerConfig`,
     withUiErrorHandling(
       async () => {
-        const ws = getWorkspaceOrThrow();
-        if (!(await hasDevcontainerConfig(ws))) {
+        const workspaceFolder = getWorkspaceOrThrow();
+        if (!(await hasDevcontainerConfig(workspaceFolder))) {
           throw new Error(
             ".devcontainer/devcontainer.json not found in this folder",
           );
         }
-        const doc = await vscode.workspace.openTextDocument(getConfigUri(ws));
+        const doc = await vscode.workspace.openTextDocument(
+          getConfigUri(workspaceFolder),
+        );
         await vscode.window.showTextDocument(doc, { preview: false });
       },
       { appendToOutput: false },
