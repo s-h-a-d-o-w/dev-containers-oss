@@ -119,7 +119,7 @@
         {
           "command": "dev-containers-oss.rebuildAndOpen",
           "group": "remote_30_devcontainer_3local@3",
-          "when": "remoteName && dev-containers-oss.hasConfig"
+          "when": "dev-containers-oss.hasConfig"
         },
         {
           "command": "dev-containers-oss.reopenFolderLocally",
