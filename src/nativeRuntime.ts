@@ -3,7 +3,6 @@ import vscode from "vscode";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import type { ProductInfo } from "./types.ts";
 import {
   DevcontainerUpResult,
@@ -20,10 +19,10 @@ import {
   copyHostDevEnvironment,
   dockerExecCapture,
   getEffectiveUser,
-  getServerDataFolderName,
   getUserHome,
-  readProductJson,
-} from "./exec.ts";
+  spawnDockerExec,
+} from "./dockerOps.ts";
+import { getServerDataFolderName, readProductJson } from "./hostInfo.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(localFolder)>`, so the container a window belongs to can be
@@ -242,11 +241,7 @@ function makeManagedConnection(
   const relay = `const net=require('net');const s=net.connect(${port},'127.0.0.1');s.on('connect',()=>{process.stdin.pipe(s);s.pipe(process.stdout);});s.on('error',(e)=>{process.stderr.write(String(e&&e.message||e));process.exit(1);});s.on('close',()=>process.exit(0));`;
   return () =>
     new Promise<vscode.ManagedMessagePassing>((resolve, reject) => {
-      const child = spawn(
-        "docker",
-        ["exec", "-i", "-u", user, containerId, nodeBin, "-e", relay],
-        { stdio: ["pipe", "pipe", "pipe"] },
-      );
+      const child = spawnDockerExec(containerId, user, [nodeBin, "-e", relay]);
       const onReceive = new vscode.EventEmitter<Uint8Array>();
       const onClose = new vscode.EventEmitter<Error | undefined>();
       const onEnd = new vscode.EventEmitter<void>();
@@ -322,21 +317,12 @@ function startSshAgentBridge(
     "utf8",
   );
 
-  const child = spawn(
-    "docker",
-    [
-      "exec",
-      "-i",
-      "-u",
-      user,
-      containerId,
-      nodeBin,
-      "-e",
-      containerScript,
-      agentSock,
-    ],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
+  const child = spawnDockerExec(containerId, user, [
+    nodeBin,
+    "-e",
+    containerScript,
+    agentSock,
+  ]);
   agentBridges.set(containerId, true);
 
   const channels = new Map<number, net.Socket>();

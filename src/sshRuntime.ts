@@ -14,10 +14,11 @@ import {
 import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,
+  dockerInspectLabel,
   execInContainerAsRoot,
   getEffectiveUser,
   getUserHome,
-} from "./exec";
+} from "./dockerOps";
 import { EXTENSION_ID } from "./constants";
 
 // Local (host-side) marker whose presence tells the reopened window to display the log
@@ -65,28 +66,14 @@ function getContainerIdFromSshConfig(hostAlias: string): string | undefined {
 // CLI must be pointed at the host folder that holds .devcontainer/devcontainer.json,
 // which the CLI recorded in the `devcontainer.local_folder` label when it created the
 // container. We read it back via docker inspect using the container id from ssh config.
-export async function resolveLocalWorkspaceFolder(
+export function resolveLocalWorkspaceFolder(
   hostAlias: string,
 ): Promise<string | undefined> {
   const containerId = getContainerIdFromSshConfig(hostAlias);
   if (!containerId) {
-    return undefined;
+    return Promise.resolve(undefined);
   }
-  const res = await runCommandCapture(
-    "docker",
-    [
-      "inspect",
-      "--format",
-      '{{ index .Config.Labels "devcontainer.local_folder" }}',
-      containerId,
-    ],
-    { quiet: true },
-  );
-  if (res.code !== 0) {
-    return undefined;
-  }
-  const localFolder = res.stdout.trim();
-  return localFolder || undefined;
+  return dockerInspectLabel(containerId, "devcontainer.local_folder");
 }
 
 async function resolvePublicKeyPath(): Promise<string | undefined> {

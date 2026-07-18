@@ -1,9 +1,10 @@
 import vscode from "vscode";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { getHomeDir, getLog, runCommand, runCommandCapture } from "./core.ts";
 import { EXTENSION_ID } from "./constants.ts";
-import { ProductInfo } from "./types.ts";
+import { getServerDataFolderName } from "./hostInfo.ts";
 
 // Build the argv for a `docker exec` invocation. Both runtimes talk to the container
 // this way; centralizing the argument order keeps the two transports consistent.
@@ -32,6 +33,38 @@ export function dockerExecCapture(
     dockerExecArgs(containerId, { user }, argv),
     { quiet: options?.quiet },
   );
+}
+
+export function spawnDockerExec(
+  containerId: string,
+  user: string,
+  argv: string[],
+) {
+  return spawn(
+    "docker",
+    dockerExecArgs(containerId, { user, interactive: true }, argv),
+    { stdio: ["pipe", "pipe", "pipe"] },
+  );
+}
+
+export async function dockerInspectLabel(
+  containerId: string,
+  label: string,
+): Promise<string | undefined> {
+  const result = await runCommandCapture(
+    "docker",
+    [
+      "inspect",
+      "--format",
+      `{{ index .Config.Labels "${label}" }}`,
+      containerId,
+    ],
+    { quiet: true },
+  );
+  if (result.code !== 0) {
+    return undefined;
+  }
+  return result.stdout.trim() || undefined;
 }
 
 export async function execInContainerAsRoot(
@@ -98,51 +131,6 @@ export async function getUserHome(
     return home;
   }
   return user === "root" ? "/root" : `/home/${user}`;
-}
-
-// Read and parse the running editor's product.json. Returns an empty object when the
-// file is missing or malformed; callers fall back to their own defaults.
-export function readProductJson(): Partial<ProductInfo> {
-  try {
-    const productJsonPath = path.join(vscode.env.appRoot, "product.json");
-    return JSON.parse(
-      fs.readFileSync(productJsonPath, "utf8"),
-    ) as Partial<ProductInfo>;
-  } catch {
-    return {};
-  }
-}
-
-// The SSH remote extension installs each container's VS Code server under a
-// product-specific folder in the user's home (e.g. .vscode-server, .vscodium-server,
-// .cursor-server). The name comes from the running client's product.json, so we read
-// serverDataFolderName there and fall back to an appName heuristic. We intentionally do
-// not derive it from applicationName: the mapping is not `.${applicationName}-server`
-// (VS Code's is .vscode-server not .code-server, VSCodium's is .vscodium-server), so
-// guessing that way would produce the wrong folder.
-export function getServerDataFolderName(): string {
-  const product = readProductJson();
-  if (
-    typeof product.serverDataFolderName === "string" &&
-    product.serverDataFolderName
-  ) {
-    return product.serverDataFolderName;
-  }
-  const appName = (vscode.env.appName || "").toLowerCase();
-  // Insiders/pre-release builds append a "-insiders" suffix to the server folder
-  // (e.g. .vscode-server-insiders, .vscodium-server-insiders); Cursor/Positron do not
-  // ship such builds, so the suffix only matters for VS Code and VSCodium.
-  const suffix = appName.includes("insiders") ? "-insiders" : "";
-  if (appName.includes("cursor")) {
-    return ".cursor-server";
-  }
-  if (appName.includes("positron")) {
-    return ".positron-server";
-  }
-  if (appName.includes("codium")) {
-    return `.vscodium-server${suffix}`;
-  }
-  return `.vscode-server${suffix}`;
 }
 
 // Seed the container user's known_hosts from the host so outbound SSH (e.g. git over
