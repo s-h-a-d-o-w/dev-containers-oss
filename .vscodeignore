@@ -1,0 +1,7 @@
+# Ignore everything
+**
+
+# Whitelist
+!dist/**/*
+!assets/*.png
+!LICENSE

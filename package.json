@@ -1,0 +1,146 @@
+{
+  "name": "dev-containers-oss",
+  "displayName": "Dev Containers OSS",
+  "description": "Extension for building and running a dev container",
+  "version": "1.0.0",
+  "publisher": "s-h-a-d-o-w",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/s-h-a-d-o-w/dev-containers-oss.git"
+  },
+  "main": "./dist/extension.js",
+  "scripts": {
+    "dev": "node esbuild.mts --watch",
+    "build": "node esbuild.mts --production",
+    "package": "pnpm build",
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky"
+  },
+  "icon": "assets/icon.png",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "devcontainer",
+    "docker",
+    "containers"
+  ],
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:.devcontainer/devcontainer.json",
+    "onResolveRemoteAuthority:dev-containers-oss"
+  ],
+  "enabledApiProposals": [
+    "resolvers"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "dev-containers-oss.openFolderInDevcontainer",
+        "title": "Reopen Folder in Container",
+        "category": "Dev Containers"
+      },
+      {
+        "command": "dev-containers-oss.openDevcontainerConfig",
+        "title": "Open Container Configuration File",
+        "category": "Dev Containers"
+      },
+      {
+        "command": "dev-containers-oss.rebuildAndOpen",
+        "title": "Rebuild and Reopen in Container",
+        "category": "Dev Containers"
+      },
+      {
+        "command": "dev-containers-oss.reopenFolderLocally",
+        "title": "Reopen Folder Locally",
+        "category": "Dev Containers"
+      }
+    ],
+    "configuration": {
+      "title": "Dev Containers OSS",
+      "properties": {
+        "dev-containers-oss.forwardSshAgent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Forward the local SSH agent to the devcontainer (adds 'ForwardAgent yes' to the generated ~/.ssh/config host block), so your local keys are usable inside the container."
+        },
+        "dev-containers-oss.copyKnownHosts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Copy the host's ~/.ssh/known_hosts into the devcontainer, so SSH connections (e.g. git over SSH) don't prompt to verify host authenticity."
+        },
+        "dev-containers-oss.copyGitConfig": {
+          "type": "boolean",
+          "default": true,
+          "description": "Copy the host's ~/.gitconfig into the devcontainer, so git inside the container uses the same identity (user.name/email) and settings as the host."
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "dev-containers-oss.openDevcontainerConfig"
+        },
+        {
+          "command": "dev-containers-oss.openFolderInDevcontainer"
+        },
+        {
+          "command": "dev-containers-oss.rebuildAndOpen"
+        }
+      ],
+      "statusBar/remoteIndicator": [
+        {
+          "command": "dev-containers-oss.openDevcontainerConfig",
+          "group": "remote_30_devcontainer_3local@1",
+          "when": "dev-containers-oss.hasConfig"
+        },
+        {
+          "command": "dev-containers-oss.openFolderInDevcontainer",
+          "group": "remote_30_devcontainer_3local@2",
+          "when": "!remoteName && dev-containers-oss.hasConfig"
+        },
+        {
+          "command": "dev-containers-oss.rebuildAndOpen",
+          "group": "remote_30_devcontainer_3local@3",
+          "when": "remoteName && dev-containers-oss.hasConfig"
+        },
+        {
+          "command": "dev-containers-oss.reopenFolderLocally",
+          "group": "remote_30_devcontainer_3local@4",
+          "when": "remoteName"
+        }
+      ]
+    }
+  },
+  "files": [
+    "assets/icon.png",
+    "dist/**",
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "NEWS.md"
+  ],
+  "dependencies": {
+    "@devcontainers/cli": "^0.87.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.125.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "oxfmt": "^0.59.0",
+    "oxlint": "^1.74.0",
+    "oxlint-tsgolint": "^0.25.0",
+    "typescript": "^7.0.2"
+  }
+}
