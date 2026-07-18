@@ -71,6 +71,11 @@
         "command": "dev-containers-oss.reopenFolderLocally",
         "title": "Reopen Folder Locally",
         "category": "Dev Containers"
+      },
+      {
+        "command": "dev-containers-oss.resetReopenPrompt",
+        "title": "Reset Reopen Prompt",
+        "category": "Dev Containers"
       }
     ],
     "configuration": {

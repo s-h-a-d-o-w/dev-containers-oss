@@ -32,6 +32,10 @@ const CONTAINER_AUTHORITY_PREFIX = `${AUTHORITY_PREFIX}+`;
 // folder locally, and resume it there on the next activation.
 const PENDING_REOPEN_KEY = `${EXTENSION_ID}.pendingReopen`;
 
+// Workspace-scoped flag set when the user picks "Don't Show Again" on the reopen prompt,
+// so the suggestion is suppressed for this folder only (not globally).
+const DONT_PROMPT_REOPEN_KEY = `${EXTENSION_ID}.dontPromptReopen`;
+
 type PendingReopen = {
   localFolder: string;
   rebuild: boolean;
@@ -315,6 +319,36 @@ export function activate(context: vscode.ExtensionContext) {
   }
   void resumePendingReopenIfAny();
 
+  // On activation in a local window, suggest reopening in the container when the folder is
+  // configured for one, mirroring the official Dev Containers extension. Suppressed while
+  // connected (nothing to reopen) and once the user dismisses it for this folder.
+  async function promptReopenInContainerIfConfigured() {
+    if (vscode.env.remoteName) {
+      return;
+    }
+    if (context.workspaceState.get<boolean>(DONT_PROMPT_REOPEN_KEY)) {
+      return;
+    }
+    if (!(await hasDevcontainerConfig(getWorkspaceFolder()))) {
+      return;
+    }
+    const reopen = "Reopen in Container";
+    const dontShowAgain = "Don't Show Again";
+    const choice = await vscode.window.showInformationMessage(
+      "This workspace contains a devcontainer.json file. Would you like to reopen it inside a container?",
+      reopen,
+      dontShowAgain,
+    );
+    if (choice === reopen) {
+      await vscode.commands.executeCommand(
+        `${EXTENSION_ID}.openFolderInDevcontainer`,
+      );
+    } else if (choice === dontShowAgain) {
+      await context.workspaceState.update(DONT_PROMPT_REOPEN_KEY, true);
+    }
+  }
+  void promptReopenInContainerIfConfigured();
+
   const openFolderInDevcontainer = vscode.commands.registerCommand(
     `${EXTENSION_ID}.openFolderInDevcontainer`,
     withUiErrorHandling(
@@ -383,11 +417,22 @@ export function activate(context: vscode.ExtensionContext) {
     ),
   );
 
+  const resetReopenPrompt = vscode.commands.registerCommand(
+    `${EXTENSION_ID}.resetReopenPrompt`,
+    withUiErrorHandling(
+      async () => {
+        await context.workspaceState.update(DONT_PROMPT_REOPEN_KEY, undefined);
+      },
+      { appendToOutput: false },
+    ),
+  );
+
   context.subscriptions.push(
     openFolderInDevcontainer,
     openDevcontainerConfig,
     rebuildAndOpen,
     reopenFolderLocally,
+    resetReopenPrompt,
   );
 }
 
