@@ -8,18 +8,18 @@ import {
   readMergedCustomizations,
   resetLog,
   setDevMode,
-  withLogTerminal
+  withLogTerminal,
 } from "./devcontainerCore";
 import {
   getHandoffMarkerPath,
   openWorkspaceOverSsh,
-  resolveLocalWorkspaceFolder
+  resolveLocalWorkspaceFolder,
 } from "./sshRuntime";
 import {
   AUTHORITY_PREFIX,
   decodeLocalFolder,
   openFolderInContainer,
-  registerRemoteResolver
+  registerRemoteResolver,
 } from "./containerRuntime";
 import { EXTENSION_ID } from "./constants";
 
@@ -42,8 +42,8 @@ type PendingReopen = {
 function isNativeRuntimeAvailable(): boolean {
   return (
     typeof vscode.workspace.registerRemoteAuthorityResolver === "function" &&
-    typeof (vscode as { ManagedResolvedAuthority?: unknown }).ManagedResolvedAuthority ===
-      "function"
+    typeof (vscode as { ManagedResolvedAuthority?: unknown })
+      .ManagedResolvedAuthority === "function"
   );
 }
 
@@ -113,14 +113,18 @@ export function activate(context: vscode.ExtensionContext) {
 
   async function updateDevcontainerContext() {
     const has = await hasDevcontainerConfig(getWorkspaceFolder());
-    await vscode.commands.executeCommand("setContext", `${EXTENSION_ID}.hasConfig`, has);
+    await vscode.commands.executeCommand(
+      "setContext",
+      `${EXTENSION_ID}.hasConfig`,
+      has,
+    );
   }
   // Initialize context and watch for changes to devcontainer.json
   updateDevcontainerContext();
   const ws = getWorkspaceFolder();
   if (ws) {
     const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(ws, ".devcontainer/devcontainer.json")
+      new vscode.RelativePattern(ws, ".devcontainer/devcontainer.json"),
     );
     watcher.onDidCreate(updateDevcontainerContext);
     watcher.onDidDelete(updateDevcontainerContext);
@@ -138,7 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   function withUiErrorHandling(
     action: () => Promise<void>,
-    options?: { appendToOutput?: boolean }
+    options?: { appendToOutput?: boolean },
   ): () => Promise<void> {
     return async () => {
       try {
@@ -170,17 +174,22 @@ export function activate(context: vscode.ExtensionContext) {
     return decodeLocalFolder(authority);
   }
 
-  async function runDevcontainerUpAndOpen(wsFsPath: string, forceRebuild: boolean): Promise<void> {
+  async function runDevcontainerUpAndOpen(
+    wsFsPath: string,
+    forceRebuild: boolean,
+  ): Promise<void> {
     resetLog();
     await withLogTerminal("Devcontainer Configuration", async () => {
-      const result = await devcontainerUp(context, wsFsPath, { rebuild: forceRebuild });
+      const result = await devcontainerUp(context, wsFsPath, {
+        rebuild: forceRebuild,
+      });
       const customizations = await readMergedCustomizations(context, wsFsPath);
       await openWorkspaceOverSsh(
         wsFsPath,
         result.containerId,
         result.remoteUser,
         result.remoteWorkspaceFolder,
-        customizations
+        customizations,
       );
     });
   }
@@ -196,17 +205,24 @@ export function activate(context: vscode.ExtensionContext) {
       const localFolder = await resolveLocalWorkspaceFolder(hostAlias);
       if (!localFolder) {
         throw new Error(
-          "Could not determine the host workspace folder for the connected container. Try again with the workspace opened directly."
+          "Could not determine the host workspace folder for the connected container. Try again with the workspace opened directly.",
         );
       }
       await context.globalState.update(PENDING_REOPEN_KEY, {
         localFolder,
-        rebuild: forceRebuild
+        rebuild: forceRebuild,
       } satisfies PendingReopen);
-      await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(localFolder), false);
+      await vscode.commands.executeCommand(
+        "vscode.openFolder",
+        vscode.Uri.file(localFolder),
+        false,
+      );
       return;
     }
-    await runDevcontainerUpAndOpen(getWorkspaceOrThrow().uri.fsPath, forceRebuild);
+    await runDevcontainerUpAndOpen(
+      getWorkspaceOrThrow().uri.fsPath,
+      forceRebuild,
+    );
   }
 
   async function openInContainer(forceRebuild: boolean): Promise<void> {
@@ -218,16 +234,20 @@ export function activate(context: vscode.ExtensionContext) {
       await context.globalState.update(PENDING_REOPEN_KEY, {
         localFolder: connectedLocalFolder,
         rebuild: forceRebuild,
-        native: true
+        native: true,
       } satisfies PendingReopen);
       await vscode.commands.executeCommand(
         "vscode.openFolder",
         vscode.Uri.file(connectedLocalFolder),
-        false
+        false,
       );
       return;
     }
-    await openFolderInContainer(context, getWorkspaceOrThrow().uri.fsPath, forceRebuild);
+    await openFolderInContainer(
+      context,
+      getWorkspaceOrThrow().uri.fsPath,
+      forceRebuild,
+    );
   }
 
   // Single entry point for opening/rebuilding a devcontainer. When already connected we
@@ -265,57 +285,75 @@ export function activate(context: vscode.ExtensionContext) {
         pending.native
           ? openFolderInContainer(context, pending.localFolder, pending.rebuild)
           : runDevcontainerUpAndOpen(pending.localFolder, pending.rebuild),
-      { appendToOutput: false }
+      { appendToOutput: false },
     )();
   }
   resumePendingReopenIfAny();
 
   const openFolderInDevcontainer = vscode.commands.registerCommand(
     `${EXTENSION_ID}.openFolderInDevcontainer`,
-    withUiErrorHandling(async () => {
-      await openDevcontainer(false);
-    }, { appendToOutput: false })
+    withUiErrorHandling(
+      async () => {
+        await openDevcontainer(false);
+      },
+      { appendToOutput: false },
+    ),
   );
 
   const rebuildAndOpen = vscode.commands.registerCommand(
     `${EXTENSION_ID}.rebuildAndOpen`,
-    withUiErrorHandling(async () => {
-      await openDevcontainer(true);
-    }, { appendToOutput: false })
+    withUiErrorHandling(
+      async () => {
+        await openDevcontainer(true);
+      },
+      { appendToOutput: false },
+    ),
   );
 
   const reopenFolderLocally = vscode.commands.registerCommand(
     `${EXTENSION_ID}.reopenFolderLocally`,
-    withUiErrorHandling(async () => {
-      // Determine the host-side folder for whichever connection this window uses: SSH
-      // (resolve via the host alias) or native container (decoded straight from the
-      // authority). Then reopen it in a local window.
-      let localFolder = getConnectedContainerLocalFolder();
-      if (!localFolder) {
-        const hostAlias = getConnectedHostAlias();
-        if (hostAlias) {
-          localFolder = await resolveLocalWorkspaceFolder(hostAlias);
+    withUiErrorHandling(
+      async () => {
+        // Determine the host-side folder for whichever connection this window uses: SSH
+        // (resolve via the host alias) or native container (decoded straight from the
+        // authority). Then reopen it in a local window.
+        let localFolder = getConnectedContainerLocalFolder();
+        if (!localFolder) {
+          const hostAlias = getConnectedHostAlias();
+          if (hostAlias) {
+            localFolder = await resolveLocalWorkspaceFolder(hostAlias);
+          }
         }
-      }
-      if (!localFolder) {
-        throw new Error(
-          "Could not determine the host workspace folder for the connected container."
+        if (!localFolder) {
+          throw new Error(
+            "Could not determine the host workspace folder for the connected container.",
+          );
+        }
+        await vscode.commands.executeCommand(
+          "vscode.openFolder",
+          vscode.Uri.file(localFolder),
+          false,
         );
-      }
-      await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(localFolder), false);
-    }, { appendToOutput: false })
+      },
+      { appendToOutput: false },
+    ),
   );
 
   const openDevcontainerConfig = vscode.commands.registerCommand(
     `${EXTENSION_ID}.openDevcontainerConfig`,
-    withUiErrorHandling(async () => {
-      const ws = getWorkspaceOrThrow();
-      if (!(await hasDevcontainerConfig(ws))) {
-        throw new Error(".devcontainer/devcontainer.json not found in this folder");
-      }
-      const doc = await vscode.workspace.openTextDocument(getConfigUri(ws));
-      await vscode.window.showTextDocument(doc, { preview: false });
-    }, { appendToOutput: false })
+    withUiErrorHandling(
+      async () => {
+        const ws = getWorkspaceOrThrow();
+        if (!(await hasDevcontainerConfig(ws))) {
+          throw new Error(
+            ".devcontainer/devcontainer.json not found in this folder",
+          );
+        }
+        const doc = await vscode.workspace.openTextDocument(getConfigUri(ws));
+        await vscode.window.showTextDocument(doc, { preview: false });
+      },
+      { appendToOutput: false },
+    ),
   );
 
   context.subscriptions.push(

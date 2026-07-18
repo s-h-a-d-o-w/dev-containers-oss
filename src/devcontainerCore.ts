@@ -28,7 +28,9 @@ export function getDevcontainerPath(wsFsPath: string): string {
 
 // Injected by esbuild via a banner (see esbuild.mts) so the running extension can report
 // which build it came from. Absent when running unbundled (e.g. tests), hence the guard.
-declare const __BUILD_INFO__: { version: string; buildTimestamp: number } | undefined;
+declare const __BUILD_INFO__:
+  | { version: string; buildTimestamp: number }
+  | undefined;
 
 export function getBuildInfo(): { version: string; buildTimestamp: number } {
   return typeof __BUILD_INFO__ !== "undefined"
@@ -40,7 +42,9 @@ export function getBuildInfo(): { version: string; buildTimestamp: number } {
 // every build/connect flow so each setup log records exactly which build produced it.
 export function logBuildInfo(): void {
   const { version, buildTimestamp } = getBuildInfo();
-  getLog().appendLine(`Dev Containers OSS v${version} (built @ ${new Date(buildTimestamp).toLocaleString()})`);
+  getLog().appendLine(
+    `Dev Containers OSS v${version} (built @ ${new Date(buildTimestamp).toLocaleString()})`,
+  );
 }
 
 let logBuffer = "";
@@ -106,7 +110,7 @@ export function getLog(): DevcontainerLog {
       appendLine(value) {
         logBuffer += value + "\n";
         logSink?.(value + "\n");
-      }
+      },
     };
   }
   return logger;
@@ -115,7 +119,10 @@ export function getLog(): DevcontainerLog {
 // Run `fn` while streaming all log output into a fresh read-only terminal, then finish the
 // terminal. This is the only place setup output is shown, mirroring the official Dev
 // Containers extension: a terminal, only while building/configuring.
-export async function withLogTerminal<T>(name: string, fn: () => Promise<T>): Promise<T> {
+export async function withLogTerminal<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
   const term = createLogTerminal(name);
   // Replay anything already logged this session (e.g. the build-info line written right
   // after resetLog, before this terminal existed) so nothing logged pre-terminal is lost.
@@ -160,7 +167,7 @@ export function createLogTerminal(name: string): {
     handleInput() {
       if (finished) closeEmitter.fire();
     },
-    close() { }
+    close() {},
   };
   const terminal = vscode.window.createTerminal({ name, pty });
   terminal.show();
@@ -168,8 +175,10 @@ export function createLogTerminal(name: string): {
     write: emit,
     finish: () => {
       finished = true;
-      emit("\r\n\r\nTerminal is finished. Press any key to close the terminal.\r\n");
-    }
+      emit(
+        "\r\n\r\nTerminal is finished. Press any key to close the terminal.\r\n",
+      );
+    },
   };
 }
 
@@ -203,7 +212,12 @@ export function getHostAlias(wsFsPath: string): string {
 export function runCommand(
   command: string,
   args: string[],
-  { quiet, cwd, env, input }: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string; quiet?: boolean }
+  {
+    quiet,
+    cwd,
+    env,
+    input,
+  }: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string; quiet?: boolean },
 ): Promise<void> {
   const out = getLog();
   const stream = shouldStream(quiet);
@@ -212,14 +226,18 @@ export function runCommand(
     const child = spawn(command, args, {
       cwd,
       env,
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
     });
     if (input) {
       child.stdin.write(input);
       child.stdin.end();
     }
-    child.stdout.on("data", (d) => { if (stream) out.append(d.toString()); });
-    child.stderr.on("data", (d) => { if (stream) out.append(d.toString()); });
+    child.stdout.on("data", (d) => {
+      if (stream) out.append(d.toString());
+    });
+    child.stderr.on("data", (d) => {
+      if (stream) out.append(d.toString());
+    });
     child.on("error", (err) => reject(err));
     child.on("close", (code) => {
       if (code === 0) resolve();
@@ -231,7 +249,11 @@ export function runCommand(
 export async function runCommandCapture(
   command: string,
   args: string[],
-  { quiet, cwd, env }: { cwd?: string; env?: NodeJS.ProcessEnv; quiet?: boolean }
+  {
+    quiet,
+    cwd,
+    env,
+  }: { cwd?: string; env?: NodeJS.ProcessEnv; quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const out = getLog();
   const stream = shouldStream(quiet);
@@ -240,7 +262,7 @@ export async function runCommandCapture(
     const child = spawn(command, args, {
       cwd,
       env,
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
@@ -268,13 +290,20 @@ function getNodeEnv(): NodeJS.ProcessEnv {
 export function runCliCapture(
   ctx: vscode.ExtensionContext,
   args: string[],
-  { cwd }: { cwd?: string }
+  { cwd }: { cwd?: string },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
-  const cliPath = vscode.Uri.joinPath(ctx.extensionUri, "dist", "devcontainers-cli", "dist", "spec-node", "devContainersSpecCLI.js").fsPath;
+  const cliPath = vscode.Uri.joinPath(
+    ctx.extensionUri,
+    "dist",
+    "devcontainers-cli",
+    "dist",
+    "spec-node",
+    "devContainersSpecCLI.js",
+  ).fsPath;
   return runCommandCapture(process.execPath, [cliPath, ...args], {
     cwd,
     env: getNodeEnv(),
-    quiet: true
+    quiet: true,
   });
 }
 
@@ -283,12 +312,12 @@ export function runCliCapture(
 // plain-Node mode. This lets us drive commands like --install-extension --remote.
 export function runEditorCliCapture(
   args: string[],
-  { cwd }: { cwd?: string } = {}
+  { cwd }: { cwd?: string } = {},
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const cliPath = path.join(vscode.env.appRoot, "out", "cli.js");
   return runCommandCapture(process.execPath, [cliPath, ...args], {
     cwd,
-    env: getNodeEnv()
+    env: getNodeEnv(),
   });
 }
 
@@ -319,30 +348,31 @@ function parseUpResult(output: string) {
 export async function devcontainerUp(
   ctx: vscode.ExtensionContext,
   wsFsPath: string,
-  options?: { rebuild?: boolean }
+  options?: { rebuild?: boolean },
 ): Promise<DevcontainerUpResult> {
   const args = ["up", "--workspace-folder", wsFsPath];
   if (options?.rebuild) {
     args.push("--remove-existing-container");
   }
   if (options?.rebuild) {
-    vscode.window.showInformationMessage(
-      "Rebuilding devcontainer..."
-    );
+    vscode.window.showInformationMessage("Rebuilding devcontainer...");
   }
   const res = await runCliCapture(ctx, args, { cwd: wsFsPath });
   const result = parseUpResult(res.stdout) ?? parseUpResult(res.stderr);
   if (res.code !== 0 || !result || result.outcome !== "success") {
-    const detail = result?.message || result?.description || `exit code ${res.code}`;
+    const detail =
+      result?.message || result?.description || `exit code ${res.code}`;
     throw new Error(`devcontainer up failed: ${detail}`);
   }
   if (!result.containerId) {
-    throw new Error("devcontainer up succeeded but did not return a containerId");
+    throw new Error(
+      "devcontainer up succeeded but did not return a containerId",
+    );
   }
   return {
     containerId: result.containerId,
     remoteUser: result.remoteUser || "",
-    remoteWorkspaceFolder: result.remoteWorkspaceFolder || ""
+    remoteWorkspaceFolder: result.remoteWorkspaceFolder || "",
   };
 }
 
@@ -352,20 +382,22 @@ export async function devcontainerUp(
 // concatenate the extension lists and merge the settings objects in source order.
 export async function readMergedCustomizations(
   ctx: vscode.ExtensionContext,
-  wsFsPath: string
+  wsFsPath: string,
 ): Promise<DevcontainerCustomizations> {
   const empty: DevcontainerCustomizations = { extensions: [], settings: {} };
   const args = [
     "read-configuration",
     "--include-merged-configuration",
     "--workspace-folder",
-    wsFsPath
+    wsFsPath,
   ];
   let res: { stdout: string; stderr: string; code: number };
   try {
     res = await runCliCapture(ctx, args, { cwd: wsFsPath });
   } catch (err: any) {
-    getLog().appendLine(`Could not read devcontainer customizations: ${err?.message ?? String(err)}`);
+    getLog().appendLine(
+      `Could not read devcontainer customizations: ${err?.message ?? String(err)}`,
+    );
     return empty;
   }
   const result =

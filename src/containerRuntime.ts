@@ -11,7 +11,7 @@ import {
   readMergedCustomizations,
   resetLog,
   runCommandCapture,
-  withLogTerminal
+  withLogTerminal,
 } from "./devcontainerCore";
 import { EXTENSION_ID } from "./constants";
 import {
@@ -20,7 +20,7 @@ import {
   ensureKnownHostsInContainer,
   getEffectiveUser,
   getServerDataFolderName,
-  getUserHome
+  getUserHome,
 } from "./sshRuntime";
 
 // Authority scheme handled by our remote resolver. The full authority is
@@ -56,12 +56,16 @@ function readProductInfo(): ProductInfo {
   let product: any = {};
   let appPackage: any = {};
   try {
-    product = JSON.parse(fs.readFileSync(path.join(appRoot, "product.json"), "utf-8"));
+    product = JSON.parse(
+      fs.readFileSync(path.join(appRoot, "product.json"), "utf-8"),
+    );
   } catch {
     // fall back to empty; validated below
   }
   try {
-    appPackage = JSON.parse(fs.readFileSync(path.join(appRoot, "package.json"), "utf-8"));
+    appPackage = JSON.parse(
+      fs.readFileSync(path.join(appRoot, "package.json"), "utf-8"),
+    );
   } catch {
     // version may still live on product.json
   }
@@ -72,7 +76,7 @@ function readProductInfo(): ProductInfo {
     release: product.release || "",
     serverApplicationName: product.serverApplicationName || "code-server",
     serverDataFolderName: getServerDataFolderName(),
-    serverDownloadUrlTemplate: product.serverDownloadUrlTemplate
+    serverDownloadUrlTemplate: product.serverDownloadUrlTemplate,
   };
 }
 
@@ -90,10 +94,14 @@ function mapArch(uname: string): string {
   }
 }
 
-function buildServerDownloadUrl(product: ProductInfo, os: string, arch: string): string {
+function buildServerDownloadUrl(
+  product: ProductInfo,
+  os: string,
+  arch: string,
+): string {
   if (!product.serverDownloadUrlTemplate) {
     throw new Error(
-      "This editor build does not expose serverDownloadUrlTemplate in product.json, so the container server cannot be downloaded automatically. Use the SSH-based command instead."
+      "This editor build does not expose serverDownloadUrlTemplate in product.json, so the container server cannot be downloaded automatically. Use the SSH-based command instead.",
     );
   }
   return product.serverDownloadUrlTemplate
@@ -109,14 +117,16 @@ async function dockerExecCapture(
   containerId: string,
   user: string | undefined,
   argv: string[],
-  options?: { quiet?: boolean }
+  options?: { quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const base = ["exec", ...(user ? ["-u", user] : []), containerId, ...argv];
   return runCommandCapture("docker", base, { quiet: options?.quiet });
 }
 
 async function detectContainerArch(containerId: string): Promise<string> {
-  const res = await dockerExecCapture(containerId, undefined, ["uname", "-m"], { quiet: true });
+  const res = await dockerExecCapture(containerId, undefined, ["uname", "-m"], {
+    quiet: true,
+  });
   return mapArch(res.stdout || "x86_64");
 }
 
@@ -127,13 +137,15 @@ async function ensureServerInstalled(
   containerId: string,
   user: string,
   home: string,
-  product: ProductInfo
+  product: ProductInfo,
 ): Promise<string> {
   const binDir = `${home}/${product.serverDataFolderName}/bin/${product.commit}`;
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
   const arch = await detectContainerArch(containerId);
   const url = buildServerDownloadUrl(product, "linux", arch);
-  getLog().appendLine(`Ensuring server ${product.commit} (${arch}) is installed in the container...`);
+  getLog().appendLine(
+    `Ensuring server ${product.commit} (${arch}) is installed in the container...`,
+  );
   const script = [
     "set -e",
     `BIN="${binDir}"`,
@@ -149,11 +161,13 @@ async function ensureServerInstalled(
     "fi",
     'tar -xzf "$TMP" -C "$BIN" --strip-components=1',
     'rm -f "$TMP"',
-    `test -x "${serverBin}"`
+    `test -x "${serverBin}"`,
   ].join("\n");
   const res = await dockerExecCapture(containerId, user, ["sh", "-c", script]);
   if (res.code !== 0) {
-    throw new Error(`Failed to install server in container: ${res.stderr.trim() || `exit code ${res.code}`}`);
+    throw new Error(
+      `Failed to install server in container: ${res.stderr.trim() || `exit code ${res.code}`}`,
+    );
   }
   return binDir;
 }
@@ -167,7 +181,7 @@ async function ensureServerRunning(
   home: string,
   binDir: string,
   product: ProductInfo,
-  agentSock?: string
+  agentSock?: string,
 ): Promise<number> {
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
   const stateDir = `${home}/${product.serverDataFolderName}`;
@@ -192,12 +206,14 @@ async function ensureServerRunning(
     "  sleep 0.2",
     "done",
     'if [ -z "$P" ]; then echo "server did not report a listening port" >&2; tail -n 60 "$LOG" >&2; exit 1; fi',
-    'echo "PORT=$P"'
+    'echo "PORT=$P"',
   ].join("\n");
   const res = await dockerExecCapture(containerId, user, ["sh", "-c", script]);
   const match = res.stdout.match(/PORT=(\d+)/);
   if (res.code !== 0 || !match) {
-    throw new Error(`Failed to start server in container: ${res.stderr.trim() || `exit code ${res.code}`}`);
+    throw new Error(
+      `Failed to start server in container: ${res.stderr.trim() || `exit code ${res.code}`}`,
+    );
   }
   return Number(match[1]);
 }
@@ -207,7 +223,7 @@ async function installExtensionsInContainer(
   user: string,
   binDir: string,
   product: ProductInfo,
-  extensions: string[]
+  extensions: string[],
 ): Promise<void> {
   if (extensions.length === 0) return;
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
@@ -215,14 +231,16 @@ async function installExtensionsInContainer(
   for (const id of extensions) {
     args.push("--install-extension", id);
   }
-  getLog().appendLine(`Installing ${extensions.length} devcontainer extension(s) into the container server...`);
+  getLog().appendLine(
+    `Installing ${extensions.length} devcontainer extension(s) into the container server...`,
+  );
   const res = await dockerExecCapture(containerId, user, args);
   if (res.code !== 0) {
     getLog().appendLine(
-      `Extension install failed (exit code ${res.code}): ${res.stderr.trim() || res.stdout.trim() || "no output"}`
+      `Extension install failed (exit code ${res.code}): ${res.stderr.trim() || res.stdout.trim() || "no output"}`,
     );
     vscode.window.showWarningMessage(
-      `Some devcontainer extensions may not have installed (server CLI exited with code ${res.code}). See the terminal for details.`
+      `Some devcontainer extensions may not have installed (server CLI exited with code ${res.code}). See the terminal for details.`,
     );
   }
 }
@@ -236,7 +254,7 @@ function makeManagedConnection(
   user: string,
   home: string,
   product: ProductInfo,
-  port: number
+  port: number,
 ): () => Thenable<vscode.ManagedMessagePassing> {
   const nodeBin = `${home}/${product.serverDataFolderName}/bin/${product.commit}/node`;
   const relay = `const net=require('net');const s=net.connect(${port},'127.0.0.1');s.on('connect',()=>{process.stdin.pipe(s);s.pipe(process.stdout);});s.on('error',(e)=>{process.stderr.write(String(e&&e.message||e));process.exit(1);});s.on('close',()=>process.exit(0));`;
@@ -245,7 +263,7 @@ function makeManagedConnection(
       const child = spawn(
         "docker",
         ["exec", "-i", "-u", user, containerId, nodeBin, "-e", relay],
-        { stdio: ["pipe", "pipe", "pipe"] }
+        { stdio: ["pipe", "pipe", "pipe"] },
       );
       const onReceive = new vscode.EventEmitter<Uint8Array>();
       const onClose = new vscode.EventEmitter<Error | undefined>();
@@ -279,7 +297,7 @@ function makeManagedConnection(
             // stream may already be closed
           }
           child.kill();
-        }
+        },
       };
 
       child.on("spawn", () => {
@@ -294,7 +312,10 @@ function makeManagedConnection(
 // Copy the host's git config and known_hosts into the container user's home, matching
 // what the SSH runtime does in setupSshAccess, so commits carry the host identity and
 // outbound SSH (git, using the forwarded agent) does not stall on host-key prompts.
-async function copyHostDevEnvironment(containerId: string, user: string): Promise<void> {
+async function copyHostDevEnvironment(
+  containerId: string,
+  user: string,
+): Promise<void> {
   const config = vscode.workspace.getConfiguration(EXTENSION_ID);
   if (config.get<boolean>("copyKnownHosts", true)) {
     await ensureKnownHostsInContainer(containerId, user);
@@ -318,7 +339,7 @@ function startSshAgentBridge(
   containerId: string,
   user: string,
   home: string,
-  product: ProductInfo
+  product: ProductInfo,
 ): string | undefined {
   const authSock = process.env.SSH_AUTH_SOCK;
   if (!authSock) return undefined;
@@ -328,13 +349,23 @@ function startSshAgentBridge(
   const nodeBin = `${home}/${product.serverDataFolderName}/bin/${product.commit}/node`;
   const containerScript = fs.readFileSync(
     path.join(__dirname, "agentBridgeContainer.js"),
-    "utf8"
+    "utf8",
   );
 
   const child = spawn(
     "docker",
-    ["exec", "-i", "-u", user, containerId, nodeBin, "-e", containerScript, agentSock],
-    { stdio: ["pipe", "pipe", "pipe"] }
+    [
+      "exec",
+      "-i",
+      "-u",
+      user,
+      containerId,
+      nodeBin,
+      "-e",
+      containerScript,
+      agentSock,
+    ],
+    { stdio: ["pipe", "pipe", "pipe"] },
   );
   agentBridges.set(containerId, true);
 
@@ -350,7 +381,7 @@ function startSshAgentBridge(
 
   child.stdout.on("data", (d: Buffer) => {
     buf = Buffer.concat([buf, d]);
-    for (; ;) {
+    for (;;) {
       if (buf.length < 9) break;
       const type = buf.readUInt8(0);
       const id = buf.readUInt32BE(1);
@@ -386,11 +417,15 @@ function startSshAgentBridge(
     channels.clear();
   };
   child.on("error", (err) => {
-    getLog().appendLine(`SSH agent forwarding bridge failed to start: ${err.message}`);
+    getLog().appendLine(
+      `SSH agent forwarding bridge failed to start: ${err.message}`,
+    );
     cleanup();
   });
   child.on("close", cleanup);
-  getLog().appendLine(`Forwarding host SSH agent into the container at ${agentSock}.`);
+  getLog().appendLine(
+    `Forwarding host SSH agent into the container at ${agentSock}.`,
+  );
   return agentSock;
 }
 
@@ -401,37 +436,39 @@ const PROVISIONED_MARKER = `.${EXTENSION_ID}-provisioned`;
 async function isContainerProvisioned(
   containerId: string,
   user: string,
-  home: string
+  home: string,
 ): Promise<boolean> {
-  const res = await dockerExecCapture(containerId, user, [
-    "sh",
-    "-c",
-    `test -f "${home}/${PROVISIONED_MARKER}"`
-  ], { quiet: true });
+  const res = await dockerExecCapture(
+    containerId,
+    user,
+    ["sh", "-c", `test -f "${home}/${PROVISIONED_MARKER}"`],
+    { quiet: true },
+  );
   return res.code === 0;
 }
 
 async function markContainerProvisioned(
   containerId: string,
   user: string,
-  home: string
+  home: string,
 ): Promise<void> {
-  await dockerExecCapture(containerId, user, [
-    "sh",
-    "-c",
-    `touch "${home}/${PROVISIONED_MARKER}"`
-  ], { quiet: true });
+  await dockerExecCapture(
+    containerId,
+    user,
+    ["sh", "-c", `touch "${home}/${PROVISIONED_MARKER}"`],
+    { quiet: true },
+  );
 }
 
 async function prepareContainerConnection(
   context: vscode.ExtensionContext,
   localFolder: string,
-  up: DevcontainerUpResult
+  up: DevcontainerUpResult,
 ): Promise<vscode.ManagedResolvedAuthority> {
   const product = readProductInfo();
   if (!product.commit) {
     throw new Error(
-      "This editor build does not expose a commit in product.json, which is required to match the container server."
+      "This editor build does not expose a commit in product.json, which is required to match the container server.",
     );
   }
   const user = await getEffectiveUser(up.containerId, up.remoteUser);
@@ -445,11 +482,29 @@ async function prepareContainerConnection(
   // behaviour.
   const provisioned = await isContainerProvisioned(up.containerId, user, home);
   const setup = async () => {
-    const binDir = await ensureServerInstalled(up.containerId, user, home, product);
+    const binDir = await ensureServerInstalled(
+      up.containerId,
+      user,
+      home,
+      product,
+    );
     if (!provisioned) {
-      const customizations = await readMergedCustomizations(context, localFolder);
-      await installExtensionsInContainer(up.containerId, user, binDir, product, customizations.extensions);
-      await applyRemoteMachineSettings(up.containerId, user, customizations.settings);
+      const customizations = await readMergedCustomizations(
+        context,
+        localFolder,
+      );
+      await installExtensionsInContainer(
+        up.containerId,
+        user,
+        binDir,
+        product,
+        customizations.extensions,
+      );
+      await applyRemoteMachineSettings(
+        up.containerId,
+        user,
+        customizations.settings,
+      );
       await copyHostDevEnvironment(up.containerId, user);
       await markContainerProvisioned(up.containerId, user, home);
     }
@@ -466,16 +521,29 @@ async function prepareContainerConnection(
   const forwardAgent = vscode.workspace
     .getConfiguration(EXTENSION_ID)
     .get<boolean>("forwardSshAgent", true);
-  const agentSock = forwardAgent ? startSshAgentBridge(up.containerId, user, home, product) : undefined;
+  const agentSock = forwardAgent
+    ? startSshAgentBridge(up.containerId, user, home, product)
+    : undefined;
 
-  const port = await ensureServerRunning(up.containerId, user, home, binDir, product, agentSock);
-  getLog().appendLine(`Container server is listening on 127.0.0.1:${port}; establishing managed connection.`);
+  const port = await ensureServerRunning(
+    up.containerId,
+    user,
+    home,
+    binDir,
+    product,
+    agentSock,
+  );
+  getLog().appendLine(
+    `Container server is listening on 127.0.0.1:${port}; establishing managed connection.`,
+  );
   return new vscode.ManagedResolvedAuthority(
-    makeManagedConnection(up.containerId, user, home, product, port)
+    makeManagedConnection(up.containerId, user, home, product, port),
   );
 }
 
-export function registerRemoteResolver(context: vscode.ExtensionContext): vscode.Disposable[] {
+export function registerRemoteResolver(
+  context: vscode.ExtensionContext,
+): vscode.Disposable[] {
   const resolver: vscode.RemoteAuthorityResolver = {
     async resolve(authority) {
       const localFolder = decodeLocalFolder(authority);
@@ -491,11 +559,16 @@ export function registerRemoteResolver(context: vscode.ExtensionContext): vscode
         getLog().appendLine(`Error: ${message}`);
         throw vscode.RemoteAuthorityResolverError.NotAvailable(message, true);
       }
-    }
+    },
   };
 
   const disposables: vscode.Disposable[] = [];
-  disposables.push(vscode.workspace.registerRemoteAuthorityResolver(AUTHORITY_PREFIX, resolver));
+  disposables.push(
+    vscode.workspace.registerRemoteAuthorityResolver(
+      AUTHORITY_PREFIX,
+      resolver,
+    ),
+  );
   disposables.push(
     vscode.workspace.registerResourceLabelFormatter({
       scheme: "vscode-remote",
@@ -505,9 +578,9 @@ export function registerRemoteResolver(context: vscode.ExtensionContext): vscode
         separator: "/",
         tildify: true,
         workspaceSuffix: "Dev Container",
-        stripPathStartingSeparator: false
-      }
-    })
+        stripPathStartingSeparator: false,
+      },
+    }),
   );
   return disposables;
 }
@@ -518,15 +591,16 @@ export function registerRemoteResolver(context: vscode.ExtensionContext): vscode
 export async function openFolderInContainer(
   context: vscode.ExtensionContext,
   localFolder: string,
-  forceRebuild: boolean
+  forceRebuild: boolean,
 ): Promise<void> {
   resetLog();
   logBuildInfo();
   const up = await withLogTerminal("Devcontainer Configuration", () =>
-    devcontainerUp(context, localFolder, { rebuild: forceRebuild })
+    devcontainerUp(context, localFolder, { rebuild: forceRebuild }),
   );
   const authority = encodeAuthority(localFolder);
-  const folder = up.remoteWorkspaceFolder || `/workspaces/${path.basename(localFolder)}`;
+  const folder =
+    up.remoteWorkspaceFolder || `/workspaces/${path.basename(localFolder)}`;
   const remoteUri = vscode.Uri.parse(`vscode-remote://${authority}${folder}`);
   await vscode.commands.executeCommand("vscode.openFolder", remoteUri, false);
 }

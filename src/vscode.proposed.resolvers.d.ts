@@ -30,7 +30,10 @@ declare module "vscode" {
     readonly makeConnection: () => Thenable<ManagedMessagePassing>;
     readonly connectionToken: string | undefined;
 
-    constructor(makeConnection: () => Thenable<ManagedMessagePassing>, connectionToken?: string);
+    constructor(
+      makeConnection: () => Thenable<ManagedMessagePassing>,
+      connectionToken?: string,
+    );
   }
 
   export interface ResolvedOptions {
@@ -38,26 +41,36 @@ declare module "vscode" {
     isTrusted?: boolean;
   }
 
-  export type ResolverResult = (ResolvedAuthority | ManagedResolvedAuthority) & ResolvedOptions;
+  export type ResolverResult = (ResolvedAuthority | ManagedResolvedAuthority) &
+    ResolvedOptions;
 
   export enum RemoteAuthorityResolverErrorCode {
     Unknown = "Unknown",
     NotAvailable = "NotAvailable",
     TemporarilyNotAvailable = "TemporarilyNotAvailable",
-    NoResolverFound = "NoResolverFound"
+    NoResolverFound = "NoResolverFound",
   }
 
   export class RemoteAuthorityResolverError extends Error {
-    static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
-    static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
+    static NotAvailable(
+      message?: string,
+      handled?: boolean,
+    ): RemoteAuthorityResolverError;
+    static TemporarilyNotAvailable(
+      message?: string,
+    ): RemoteAuthorityResolverError;
 
-    constructor(message?: string, code?: RemoteAuthorityResolverErrorCode, detail?: any);
+    constructor(
+      message?: string,
+      code?: RemoteAuthorityResolverErrorCode,
+      detail?: any,
+    );
   }
 
   export interface RemoteAuthorityResolver {
     resolve(
       authority: string,
-      context: RemoteAuthorityResolverContext
+      context: RemoteAuthorityResolverContext,
     ): ResolverResult | Thenable<ResolverResult>;
     getCanonicalURI?(uri: Uri): ProviderResult<Uri>;
   }
@@ -82,9 +95,11 @@ declare module "vscode" {
   export namespace workspace {
     export function registerRemoteAuthorityResolver(
       authorityPrefix: string,
-      resolver: RemoteAuthorityResolver
+      resolver: RemoteAuthorityResolver,
     ): Disposable;
 
-    export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
+    export function registerResourceLabelFormatter(
+      formatter: ResourceLabelFormatter,
+    ): Disposable;
   }
 }

@@ -17,6 +17,7 @@ Don't forget to make your SSH key available if you want to commit through the UI
   "image": "mcr.microsoft.com/devcontainers/javascript-node"
 }
 ```
+
 - More minimal feature set. But I believe all the necessary basics that make working with dev containers convenient are there.
 
 ### SSH fallback

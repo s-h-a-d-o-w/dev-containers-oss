@@ -1,20 +1,23 @@
-import esbuild from 'esbuild';
-import fs from 'fs';
-import path from 'path';
+import esbuild from "esbuild";
+import fs from "fs";
+import path from "path";
 
-const production = process.argv.includes('--production');
-const watch = process.argv.includes('--watch');
+const production = process.argv.includes("--production");
+const watch = process.argv.includes("--watch");
 
 const pkg = JSON.parse(
-  fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8'),
+  fs.readFileSync(path.join(import.meta.dirname, "package.json"), "utf8"),
 ) as { version: string };
 const buildTimestamp = Date.now();
 
 const clean: esbuild.Plugin = {
-  name: 'clean',
+  name: "clean",
   setup(build) {
     build.onStart(() => {
-      fs.rmSync(path.join(import.meta.dirname, 'dist'), { recursive: true, force: true });
+      fs.rmSync(path.join(import.meta.dirname, "dist"), {
+        recursive: true,
+        force: true,
+      });
       copyDevcontainerCli();
       copyAgentBridgeScript();
     });
@@ -27,17 +30,32 @@ const clean: esbuild.Plugin = {
 // path.join(__dirname, '..', '..'), so we must preserve its dist/spec-node depth and
 // copy the scripts/ folder next to it.
 function copyDevcontainerCli() {
-  const cliRoot = path.join(import.meta.dirname, 'node_modules', '@devcontainers', 'cli');
-  const destDir = path.join(import.meta.dirname, 'dist', 'devcontainers-cli');
+  const cliRoot = path.join(
+    import.meta.dirname,
+    "node_modules",
+    "@devcontainers",
+    "cli",
+  );
+  const destDir = path.join(import.meta.dirname, "dist", "devcontainers-cli");
 
-  const src = path.join(cliRoot, 'dist', 'spec-node', 'devContainersSpecCLI.js');
-  const dest = path.join(destDir, 'dist', 'spec-node', 'devContainersSpecCLI.js');
-  fs.mkdirSync(path.join(destDir, 'dist', 'spec-node'), { recursive: true });
+  const src = path.join(
+    cliRoot,
+    "dist",
+    "spec-node",
+    "devContainersSpecCLI.js",
+  );
+  const dest = path.join(
+    destDir,
+    "dist",
+    "spec-node",
+    "devContainersSpecCLI.js",
+  );
+  fs.mkdirSync(path.join(destDir, "dist", "spec-node"), { recursive: true });
   fs.copyFileSync(src, dest);
   console.log(`Copied devcontainer CLI to ${dest}`);
 
-  const scriptsSrc = path.join(cliRoot, 'scripts');
-  const scriptsDest = path.join(destDir, 'scripts');
+  const scriptsSrc = path.join(cliRoot, "scripts");
+  const scriptsDest = path.join(destDir, "scripts");
   fs.cpSync(scriptsSrc, scriptsDest, { recursive: true });
   console.log(`Copied devcontainer CLI scripts to ${scriptsDest}`);
 }
@@ -46,44 +64,48 @@ function copyDevcontainerCli() {
 // It must stay a standalone script (not bundled into extension.js), so ship it verbatim
 // next to the extension and read it at runtime with `node -e`.
 function copyAgentBridgeScript() {
-  const src = path.join(import.meta.dirname, 'src', 'agentBridgeContainer.js');
-  const dest = path.join(import.meta.dirname, 'dist', 'agentBridgeContainer.js');
-  fs.mkdirSync(path.join(import.meta.dirname, 'dist'), { recursive: true });
+  const src = path.join(import.meta.dirname, "src", "agentBridgeContainer.js");
+  const dest = path.join(
+    import.meta.dirname,
+    "dist",
+    "agentBridgeContainer.js",
+  );
+  fs.mkdirSync(path.join(import.meta.dirname, "dist"), { recursive: true });
   fs.copyFileSync(src, dest);
   console.log(`Copied agent bridge script to ${dest}`);
 }
 
 async function main() {
   const ctx = await esbuild.context({
-    entryPoints: ['src/extension.ts'],
+    entryPoints: ["src/extension.ts"],
     bundle: true,
-    format: 'cjs',
+    format: "cjs",
     minify: production,
     sourcemap: !production,
     sourcesContent: false,
-    platform: 'node',
-    outfile: 'dist/extension.js',
-    external: ['vscode', 'fs', 'path', 'child_process', 'net'],
+    platform: "node",
+    outfile: "dist/extension.js",
+    external: ["vscode", "fs", "path", "child_process", "net"],
     banner: {
       js: `globalThis.__BUILD_INFO__ = ${JSON.stringify({
         version: pkg.version,
         buildTimestamp,
       })};`,
     },
-    logLevel: 'info',
+    logLevel: "info",
     plugins: [clean],
   });
 
   if (watch) {
     await ctx.watch();
-    console.log('Watching for changes...');
+    console.log("Watching for changes...");
   } else {
     await ctx.rebuild();
     await ctx.dispose();
   }
 }
 
-main().catch(e => {
+main().catch((e) => {
   console.error(e);
   process.exit(1);
 });

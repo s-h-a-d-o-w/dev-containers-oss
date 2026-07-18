@@ -1,46 +1,54 @@
 {
   "name": "dev-containers-oss",
   "displayName": "Dev Containers OSS",
-  "description": "Extension for building and running a dev container",
   "version": "1.0.0",
-  "publisher": "s-h-a-d-o-w",
+  "description": "Extension for building and running a dev container",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "containers",
+    "devcontainer",
+    "docker"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/s-h-a-d-o-w/dev-containers-oss.git"
   },
+  "publisher": "s-h-a-d-o-w",
+  "files": [
+    "assets/icon.png",
+    "dist/**",
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "NEWS.md"
+  ],
   "main": "./dist/extension.js",
   "scripts": {
-    "dev": "node esbuild.mts --watch",
     "build": "node esbuild.mts --production",
+    "dev": "node esbuild.mts --watch",
+    "lint": "oxlint --report-unused-disable-directives-severity=error",
     "package": "pnpm build",
-    "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "typecheck": "tsc --noEmit"
   },
-  "icon": "assets/icon.png",
-  "categories": [
-    "Other"
-  ],
-  "keywords": [
-    "devcontainer",
-    "docker",
-    "containers"
-  ],
-  "engines": {
-    "vscode": "^1.125.0"
+  "dependencies": {
+    "@devcontainers/cli": "^0.87.0"
   },
-  "extensionKind": [
-    "ui",
-    "workspace"
-  ],
-  "activationEvents": [
-    "onStartupFinished",
-    "workspaceContains:.devcontainer/devcontainer.json",
-    "onResolveRemoteAuthority:dev-containers-oss"
-  ],
-  "enabledApiProposals": [
-    "resolvers"
-  ],
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.125.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "oxfmt": "^0.59.0",
+    "oxlint": "^1.74.0",
+    "oxlint-tsgolint": "^0.25.0",
+    "typescript": "^7.0.2"
+  },
   "contributes": {
     "commands": [
       {
@@ -120,27 +128,20 @@
       ]
     }
   },
-  "files": [
-    "assets/icon.png",
-    "dist/**",
-    "package.json",
-    "README.md",
-    "LICENSE",
-    "NEWS.md"
+  "activationEvents": [
+    "onResolveRemoteAuthority:dev-containers-oss",
+    "onStartupFinished",
+    "workspaceContains:.devcontainer/devcontainer.json"
   ],
-  "dependencies": {
-    "@devcontainers/cli": "^0.87.0"
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "icon": "assets/icon.png",
+  "engines": {
+    "vscode": "^1.125.0"
   },
-  "devDependencies": {
-    "@types/node": "^24.0.0",
-    "@types/vscode": "^1.125.0",
-    "@vscode/vsce": "^3.9.2",
-    "esbuild": "^0.28.1",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.0.8",
-    "oxfmt": "^0.59.0",
-    "oxlint": "^1.74.0",
-    "oxlint-tsgolint": "^0.25.0",
-    "typescript": "^7.0.2"
-  }
+  "enabledApiProposals": [
+    "resolvers"
+  ]
 }
