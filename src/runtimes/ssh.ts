@@ -2,13 +2,11 @@ import vscode from "vscode";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { getHomeDir, getHostAlias, runCommandCapture } from "../core";
 import {
   DevcontainerCustomizations,
-  getHomeDir,
-  getHostAlias,
-  runCommandCapture,
   runEditorCliCapture,
-} from "../core";
+} from "../devContainerCli";
 import { getBufferedLog, getLog } from "../log";
 import {
   applyRemoteMachineSettings,

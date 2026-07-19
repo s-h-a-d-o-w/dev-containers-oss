@@ -8,7 +8,7 @@ import {
   DevcontainerUpResult,
   devcontainerUp,
   readMergedCustomizations,
-} from "../core.ts";
+} from "../devContainerCli.ts";
 import { getLog, logBuildInfo, resetLog, withLogTerminal } from "../log.ts";
 import { EXTENSION_ID } from "../constants.ts";
 import {
