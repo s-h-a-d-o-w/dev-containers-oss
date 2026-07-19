@@ -1,4 +1,4 @@
-import { workspace, WorkspaceFolder } from "vscode";
+import { workspace, type WorkspaceFolder } from "vscode";
 import path from "node:path";
 import { EXTENSION_ID } from "./constants.ts";
 

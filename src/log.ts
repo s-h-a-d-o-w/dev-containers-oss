@@ -1,4 +1,4 @@
-import { EventEmitter, Pseudoterminal, window } from "vscode";
+import { EventEmitter, type Pseudoterminal, window } from "vscode";
 
 export type DevcontainerLog = {
   append: (value: string) => void;

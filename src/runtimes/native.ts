@@ -1,13 +1,13 @@
 // oxlint-disable no-template-curly-in-string
 import {
   commands,
-  Disposable,
+  type Disposable,
   env,
   EventEmitter,
-  ExtensionContext,
-  ManagedMessagePassing,
+  type ExtensionContext,
+  type ManagedMessagePassing,
   ManagedResolvedAuthority,
-  RemoteAuthorityResolver,
+  type RemoteAuthorityResolver,
   RemoteAuthorityResolverError,
   Uri,
   window,
@@ -18,7 +18,7 @@ import net from "node:net";
 import path from "node:path";
 import type { ProductInfo } from "../types.ts";
 import {
-  DevcontainerUpResult,
+  type DevcontainerUpResult,
   devcontainerUp,
   readMergedCustomizations,
 } from "../devContainerCli.ts";

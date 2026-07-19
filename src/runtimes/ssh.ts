@@ -2,7 +2,7 @@ import {
   commands,
   env,
   extensions,
-  Terminal,
+  type Terminal,
   Uri,
   window,
   workspace,
@@ -13,7 +13,7 @@ import path from "node:path";
 import { getHomeDir, getHostAlias } from "../utilities";
 import { runCommandCapture } from "../runCommands";
 import {
-  DevcontainerCustomizations,
+  type DevcontainerCustomizations,
   runEditorCliCapture,
 } from "../devContainerCli";
 import { getBufferedLog, getLog } from "../log";

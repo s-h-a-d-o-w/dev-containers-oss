@@ -1,4 +1,4 @@
-import { env, ExtensionContext, Uri, window } from "vscode";
+import { env, type ExtensionContext, Uri, window } from "vscode";
 import path from "node:path";
 import { runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";

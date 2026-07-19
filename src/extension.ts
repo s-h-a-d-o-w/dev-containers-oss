@@ -1,14 +1,14 @@
 import {
   commands,
   env,
-  ExtensionContext,
+  type ExtensionContext,
   ExtensionMode,
   ManagedResolvedAuthority,
   RelativePattern,
   Uri,
   window,
   workspace,
-  WorkspaceFolder,
+  type WorkspaceFolder,
 } from "vscode";
 import fs from "node:fs";
 import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";
