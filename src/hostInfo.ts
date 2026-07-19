@@ -1,4 +1,4 @@
-import vscode from "vscode";
+import { env } from "vscode";
 import fs from "node:fs";
 import path from "node:path";
 import { ProductInfo } from "./types.ts";
@@ -7,7 +7,7 @@ import { ProductInfo } from "./types.ts";
 // file is missing or malformed; callers fall back to their own defaults.
 export function readProductJson(): Partial<ProductInfo> {
   try {
-    const productJsonPath = path.join(vscode.env.appRoot, "product.json");
+    const productJsonPath = path.join(env.appRoot, "product.json");
     return JSON.parse(
       fs.readFileSync(productJsonPath, "utf8"),
     ) as Partial<ProductInfo>;
@@ -31,7 +31,7 @@ export function getServerDataFolderName(): string {
   ) {
     return product.serverDataFolderName;
   }
-  const appName = (vscode.env.appName || "").toLowerCase();
+  const appName = (env.appName || "").toLowerCase();
   // Insiders/pre-release builds append a "-insiders" suffix to the server folder
   // (e.g. .vscode-server-insiders, .vscodium-server-insiders); Cursor/Positron do not
   // ship such builds, so the suffix only matters for VS Code and VSCodium.

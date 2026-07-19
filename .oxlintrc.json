@@ -50,6 +50,7 @@
     // pedantic
     "react/forbid-component-props": "off", // Might make sense on projects that don't use styled components pattern
     "unicorn/no-negated-condition": "off",
+    "unicorn/prefer-event-target": "off",
 
     // restriction
     "vitest/require-test-timeout": "off",

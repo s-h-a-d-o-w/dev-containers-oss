@@ -1,5 +1,18 @@
 // oxlint-disable no-template-curly-in-string
-import vscode from "vscode";
+import {
+  commands,
+  Disposable,
+  env,
+  EventEmitter,
+  ExtensionContext,
+  ManagedMessagePassing,
+  ManagedResolvedAuthority,
+  RemoteAuthorityResolver,
+  RemoteAuthorityResolverError,
+  Uri,
+  window,
+  workspace,
+} from "vscode";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -40,7 +53,7 @@ export function decodeLocalFolder(authority: string): string {
 // The REH (remote extension host / server) build we install into the container must match
 // the running client exactly, so its identity is read from the client's own product.json.
 function readProductInfo(): ProductInfo {
-  const { appRoot } = vscode.env;
+  const { appRoot } = env;
   const product: Partial<ProductInfo> = readProductJson();
   let appPackage: { version?: string } = {};
   try {
@@ -217,7 +230,7 @@ async function installExtensionsInContainer(
     getLog().appendLine(
       `Extension install failed (exit code ${res.code}): ${res.stderr.trim() || res.stdout.trim() || "no output"}`,
     );
-    vscode.window.showWarningMessage(
+    window.showWarningMessage(
       `Some devcontainer extensions may not have installed (server CLI exited with code ${res.code}). See the terminal for details.`,
     );
   }
@@ -233,15 +246,15 @@ function makeManagedConnection(
   home: string,
   product: ProductInfo,
   port: number,
-): () => Thenable<vscode.ManagedMessagePassing> {
+): () => Thenable<ManagedMessagePassing> {
   const nodeBin = `${home}/${product.serverDataFolderName}/bin/${product.commit}/node`;
   const relay = `const net=require('net');const s=net.connect(${port},'127.0.0.1');s.on('connect',()=>{process.stdin.pipe(s);s.pipe(process.stdout);});s.on('error',(e)=>{process.stderr.write(String(e&&e.message||e));process.exit(1);});s.on('close',()=>process.exit(0));`;
   return () =>
-    new Promise<vscode.ManagedMessagePassing>((resolve, reject) => {
+    new Promise<ManagedMessagePassing>((resolve, reject) => {
       const child = spawnDockerExec(containerId, user, [nodeBin, "-e", relay]);
-      const onReceive = new vscode.EventEmitter<Uint8Array>();
-      const onClose = new vscode.EventEmitter<Error | undefined>();
-      const onEnd = new vscode.EventEmitter<void>();
+      const onReceive = new EventEmitter<Uint8Array>();
+      const onClose = new EventEmitter<Error | undefined>();
+      const onEnd = new EventEmitter<void>();
       let settled = false;
 
       child.stdout.on("data", (d: Buffer) => onReceive.fire(new Uint8Array(d)));
@@ -257,7 +270,7 @@ function makeManagedConnection(
       });
       child.on("close", () => onClose.fire(undefined));
 
-      const passing: vscode.ManagedMessagePassing = {
+      const passing: ManagedMessagePassing = {
         onDidReceiveMessage: onReceive.event,
         onDidClose: onClose.event,
         onDidEnd: onEnd.event,
@@ -424,10 +437,10 @@ async function markContainerProvisioned(
 }
 
 async function prepareContainerConnection(
-  context: vscode.ExtensionContext,
+  context: ExtensionContext,
   localFolder: string,
   up: DevcontainerUpResult,
-): Promise<vscode.ManagedResolvedAuthority> {
+): Promise<ManagedResolvedAuthority> {
   const product = readProductInfo();
   if (!product.commit) {
     throw new Error(
@@ -481,7 +494,7 @@ async function prepareContainerConnection(
     ? await setup()
     : await withLogTerminal("Devcontainer Configuration", setup);
 
-  const forwardAgent = vscode.workspace
+  const forwardAgent = workspace
     .getConfiguration(EXTENSION_ID)
     .get<boolean>("forwardSshAgent", true);
   const agentSock = forwardAgent
@@ -499,15 +512,15 @@ async function prepareContainerConnection(
   getLog().appendLine(
     `Container server is listening on 127.0.0.1:${port}; establishing managed connection.`,
   );
-  return new vscode.ManagedResolvedAuthority(
+  return new ManagedResolvedAuthority(
     makeManagedConnection(up.containerId, user, home, product, port),
   );
 }
 
 export function registerRemoteResolver(
-  context: vscode.ExtensionContext,
-): vscode.Disposable[] {
-  const resolver: vscode.RemoteAuthorityResolver = {
+  context: ExtensionContext,
+): Disposable[] {
+  const resolver: RemoteAuthorityResolver = {
     async resolve(authority) {
       const localFolder = decodeLocalFolder(authority);
       resetLog();
@@ -520,17 +533,14 @@ export function registerRemoteResolver(
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         getLog().appendLine(`Error: ${message}`);
-        throw vscode.RemoteAuthorityResolverError.NotAvailable(message, true);
+        throw RemoteAuthorityResolverError.NotAvailable(message, true);
       }
     },
   };
 
   return [
-    vscode.workspace.registerRemoteAuthorityResolver(
-      AUTHORITY_PREFIX,
-      resolver,
-    ),
-    vscode.workspace.registerResourceLabelFormatter({
+    workspace.registerRemoteAuthorityResolver(AUTHORITY_PREFIX, resolver),
+    workspace.registerResourceLabelFormatter({
       scheme: "vscode-remote",
       authority: `${AUTHORITY_PREFIX}+*`,
       formatting: {
@@ -541,14 +551,14 @@ export function registerRemoteResolver(
         stripPathStartingSeparator: false,
       },
     }),
-  ] satisfies vscode.Disposable[];
+  ] satisfies Disposable[];
 }
 
 // Bring the container up so we know its in-container workspace path, then open a window
 // bound to our managed authority. The resolver reuses the same (now running) container
 // when that window connects.
 export async function nativeRuntime(
-  context: vscode.ExtensionContext,
+  context: ExtensionContext,
   localFolder: string,
   forceRebuild: boolean,
 ): Promise<void> {
@@ -562,6 +572,6 @@ export async function nativeRuntime(
   const authority = encodeAuthority(localFolder);
   const folder =
     up.remoteWorkspaceFolder || `/workspaces/${path.basename(localFolder)}`;
-  const remoteUri = vscode.Uri.parse(`vscode-remote://${authority}${folder}`);
-  await vscode.commands.executeCommand("vscode.openFolder", remoteUri, false);
+  const remoteUri = Uri.parse(`vscode-remote://${authority}${folder}`);
+  await commands.executeCommand("vscode.openFolder", remoteUri, false);
 }

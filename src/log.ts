@@ -1,4 +1,4 @@
-import vscode from "vscode";
+import { EventEmitter, Pseudoterminal, window } from "vscode";
 
 export type DevcontainerLog = {
   append: (value: string) => void;
@@ -70,9 +70,9 @@ export function createLogTerminal(name: string): {
   write: (text: string) => void;
   finish: () => void;
 } {
-  const writeEmitter = new vscode.EventEmitter<string>();
+  const writeEmitter = new EventEmitter<string>();
   // oxlint-disable-next-line typescript/no-invalid-void-type
-  const closeEmitter = new vscode.EventEmitter<number | void>();
+  const closeEmitter = new EventEmitter<number | void>();
   let opened = false;
   let finished = false;
   let pending = "";
@@ -84,7 +84,7 @@ export function createLogTerminal(name: string): {
       pending += body;
     }
   };
-  const pty: vscode.Pseudoterminal = {
+  const pty: Pseudoterminal = {
     onDidWrite: writeEmitter.event,
     onDidClose: closeEmitter.event,
     open() {
@@ -103,7 +103,7 @@ export function createLogTerminal(name: string): {
       /* empty */
     },
   };
-  const terminal = vscode.window.createTerminal({ name, pty });
+  const terminal = window.createTerminal({ name, pty });
   terminal.show();
   return {
     write: emit,

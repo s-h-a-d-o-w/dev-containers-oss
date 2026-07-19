@@ -1,4 +1,15 @@
-import vscode from "vscode";
+import {
+  commands,
+  env,
+  ExtensionContext,
+  ExtensionMode,
+  ManagedResolvedAuthority,
+  RelativePattern,
+  Uri,
+  window,
+  workspace,
+  WorkspaceFolder,
+} from "vscode";
 import fs from "node:fs";
 import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";
 import { getWorkspaceFolder } from "./utilities.ts";
@@ -44,9 +55,8 @@ type PendingReopen = {
 // E.g. vscodium now has native support but that might not be the case for every flavor of VS Code.
 function isNativeRuntimeAvailable(): boolean {
   return (
-    typeof vscode.workspace.registerRemoteAuthorityResolver === "function" &&
-    typeof (vscode as { ManagedResolvedAuthority?: unknown })
-      .ManagedResolvedAuthority === "function"
+    typeof workspace.registerRemoteAuthorityResolver === "function" &&
+    typeof ManagedResolvedAuthority === "function"
   );
 }
 
@@ -67,10 +77,10 @@ function showLogInReadOnlyTerminal(logText: string) {
 // Consuming (deleting) the marker keeps this to the first activation only, so later
 // reloads of the same window do not reopen the terminal.
 function showHandoffLogIfPresent() {
-  if (!vscode.env.remoteName) {
+  if (!env.remoteName) {
     return;
   }
-  const authority = vscode.workspace.workspaceFolders?.[0]?.uri.authority ?? "";
+  const authority = workspace.workspaceFolders?.[0]?.uri.authority ?? "";
   if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) {
     return;
   }
@@ -89,11 +99,11 @@ function showHandoffLogIfPresent() {
   showLogInReadOnlyTerminal(logText);
 }
 
-function getConfigUri(ws: vscode.WorkspaceFolder) {
-  return vscode.Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
+function getConfigUri(ws: WorkspaceFolder) {
+  return Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
 }
 
-function getWorkspaceOrThrow(): vscode.WorkspaceFolder {
+function getWorkspaceOrThrow(): WorkspaceFolder {
   const workspaceFolder = getWorkspaceFolder();
   if (!workspaceFolder) {
     throw new Error("No folder open");
@@ -110,7 +120,7 @@ function withUiErrorHandling(
       await action();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(message);
+      window.showErrorMessage(message);
       if (options?.appendToOutput ?? true) {
         getLog().appendLine(`Error: ${message}`);
       }
@@ -118,8 +128,8 @@ function withUiErrorHandling(
   };
 }
 
-export function activate(context: vscode.ExtensionContext) {
-  setDevMode(context.extensionMode === vscode.ExtensionMode.Development);
+export function activate(context: ExtensionContext) {
+  setDevMode(context.extensionMode === ExtensionMode.Development);
 
   showHandoffLogIfPresent();
 
@@ -135,12 +145,12 @@ export function activate(context: vscode.ExtensionContext) {
   // Resolve the config via the VS Code filesystem API rather than Node's fs: while
   // connected this extension runs on the UI (local) host, but the workspace lives on the
   // remote, so fs.existsSync on the remote fsPath would always miss.
-  async function hasDevcontainerConfig(ws: vscode.WorkspaceFolder | undefined) {
+  async function hasDevcontainerConfig(ws: WorkspaceFolder | undefined) {
     if (!ws) {
       return false;
     }
     try {
-      await vscode.workspace.fs.stat(getConfigUri(ws));
+      await workspace.fs.stat(getConfigUri(ws));
       return true;
     } catch {
       return false;
@@ -149,7 +159,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   async function updateDevcontainerContext() {
     const has = await hasDevcontainerConfig(getWorkspaceFolder());
-    await vscode.commands.executeCommand(
+    await commands.executeCommand(
       "setContext",
       `${EXTENSION_ID}.hasConfig`,
       has,
@@ -160,7 +170,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // The alias of the container this window is connected to, if it is one of ours.
   function getConnectedHostAlias(): string | undefined {
-    if (!vscode.env.remoteName) {
+    if (!env.remoteName) {
       return undefined;
     }
     const authority = getWorkspaceFolder()?.uri.authority ?? "";
@@ -173,7 +183,7 @@ export function activate(context: vscode.ExtensionContext) {
   // The host-side folder of the native (managed) container this window is connected to, if
   // any. The local path is encoded straight into the authority, so no lookup is needed.
   function getConnectedContainerLocalFolder(): string | undefined {
-    if (!vscode.env.remoteName) {
+    if (!env.remoteName) {
       return undefined;
     }
     const authority = getWorkspaceFolder()?.uri.authority ?? "";
@@ -191,13 +201,13 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
     const rebuild = "Rebuild";
-    const choice = await vscode.window.showInformationMessage(
+    const choice = await window.showInformationMessage(
       "Configuration file changed: devcontainer.json. The container might need to be rebuilt to apply the changes.",
       rebuild,
       "Ignore",
     );
     if (choice === rebuild) {
-      await vscode.commands.executeCommand(`${EXTENSION_ID}.rebuildAndOpen`);
+      await commands.executeCommand(`${EXTENSION_ID}.rebuildAndOpen`);
     }
   }
 
@@ -205,8 +215,8 @@ export function activate(context: vscode.ExtensionContext) {
   // connected, prompt to rebuild so edits take effect.
   const initialWorkspaceFolder = getWorkspaceFolder();
   if (initialWorkspaceFolder) {
-    const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(
+    const watcher = workspace.createFileSystemWatcher(
+      new RelativePattern(
         initialWorkspaceFolder,
         ".devcontainer/devcontainer.json",
       ),
@@ -258,9 +268,9 @@ export function activate(context: vscode.ExtensionContext) {
         localFolder,
         rebuild: forceRebuild,
       } satisfies PendingReopen);
-      await vscode.commands.executeCommand(
+      await commands.executeCommand(
         "vscode.openFolder",
-        vscode.Uri.file(localFolder),
+        Uri.file(localFolder),
         false,
       );
       return;
@@ -279,9 +289,9 @@ export function activate(context: vscode.ExtensionContext) {
         rebuild: forceRebuild,
         native: true,
       } satisfies PendingReopen);
-      await vscode.commands.executeCommand(
+      await commands.executeCommand(
         "vscode.openFolder",
-        vscode.Uri.file(connectedLocalFolder),
+        Uri.file(connectedLocalFolder),
         false,
       );
       return;
@@ -321,7 +331,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (!pending) {
       return;
     }
-    if (vscode.env.remoteName) {
+    if (env.remoteName) {
       return;
     }
     const workspaceFolder = getWorkspaceFolder();
@@ -347,7 +357,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
   async function promptReopenInContainerIfConfigured() {
     if (
-      vscode.env.remoteName ||
+      env.remoteName ||
       isReopening ||
       context.workspaceState.get<boolean>(DONT_PROMPT_REOPEN_KEY) ||
       !(await hasDevcontainerConfig(getWorkspaceFolder()))
@@ -357,15 +367,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     const reopen = "Reopen in Container";
     const dontShowAgain = "Don't Show Again";
-    const choice = await vscode.window.showInformationMessage(
+    const choice = await window.showInformationMessage(
       "This workspace contains a devcontainer.json file. Would you like to reopen it inside a container?",
       reopen,
       dontShowAgain,
     );
     if (choice === reopen) {
-      await vscode.commands.executeCommand(
-        `${EXTENSION_ID}.openFolderInDevcontainer`,
-      );
+      await commands.executeCommand(`${EXTENSION_ID}.openFolderInDevcontainer`);
     } else if (choice === dontShowAgain) {
       await context.workspaceState.update(DONT_PROMPT_REOPEN_KEY, true);
     }
@@ -374,7 +382,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   void resumePendingReopenIfAny();
 
-  const openFolderInDevcontainer = vscode.commands.registerCommand(
+  const openFolderInDevcontainer = commands.registerCommand(
     `${EXTENSION_ID}.openFolderInDevcontainer`,
     withUiErrorHandling(
       async () => {
@@ -384,7 +392,7 @@ export function activate(context: vscode.ExtensionContext) {
     ),
   );
 
-  const rebuildAndOpen = vscode.commands.registerCommand(
+  const rebuildAndOpen = commands.registerCommand(
     `${EXTENSION_ID}.rebuildAndOpen`,
     withUiErrorHandling(
       async () => {
@@ -394,7 +402,7 @@ export function activate(context: vscode.ExtensionContext) {
     ),
   );
 
-  const reopenFolderLocally = vscode.commands.registerCommand(
+  const reopenFolderLocally = commands.registerCommand(
     `${EXTENSION_ID}.reopenFolderLocally`,
     withUiErrorHandling(
       async () => {
@@ -413,9 +421,9 @@ export function activate(context: vscode.ExtensionContext) {
             "Could not determine the host workspace folder for the connected container.",
           );
         }
-        await vscode.commands.executeCommand(
+        await commands.executeCommand(
           "vscode.openFolder",
-          vscode.Uri.file(localFolder),
+          Uri.file(localFolder),
           false,
         );
       },
@@ -423,7 +431,7 @@ export function activate(context: vscode.ExtensionContext) {
     ),
   );
 
-  const openDevcontainerConfig = vscode.commands.registerCommand(
+  const openDevcontainerConfig = commands.registerCommand(
     `${EXTENSION_ID}.openDevcontainerConfig`,
     withUiErrorHandling(
       async () => {
@@ -433,16 +441,16 @@ export function activate(context: vscode.ExtensionContext) {
             ".devcontainer/devcontainer.json not found in this folder",
           );
         }
-        const doc = await vscode.workspace.openTextDocument(
+        const doc = await workspace.openTextDocument(
           getConfigUri(workspaceFolder),
         );
-        await vscode.window.showTextDocument(doc, { preview: false });
+        await window.showTextDocument(doc, { preview: false });
       },
       { appendToOutput: false },
     ),
   );
 
-  const resetReopenPrompt = vscode.commands.registerCommand(
+  const resetReopenPrompt = commands.registerCommand(
     `${EXTENSION_ID}.resetReopenPrompt`,
     withUiErrorHandling(
       async () => {

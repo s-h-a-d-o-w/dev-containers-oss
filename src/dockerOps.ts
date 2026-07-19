@@ -1,4 +1,4 @@
-import vscode from "vscode";
+import { window, workspace } from "vscode";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -95,7 +95,7 @@ async function getContainerUsername(containerId: string): Promise<string> {
   if (user) {
     return user;
   }
-  vscode.window.showWarningMessage(
+  window.showWarningMessage(
     "Could not detect container user. Falling back to 'root'.",
   );
   return "root";
@@ -198,7 +198,7 @@ export async function copyHostDevEnvironment(
   containerId: string,
   user: string,
 ): Promise<void> {
-  const config = vscode.workspace.getConfiguration(EXTENSION_ID);
+  const config = workspace.getConfiguration(EXTENSION_ID);
   if (config.get<boolean>("copyKnownHosts", true)) {
     await ensureKnownHostsInContainer(containerId, user);
   }

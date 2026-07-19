@@ -1,4 +1,12 @@
-import vscode from "vscode";
+import {
+  commands,
+  env,
+  extensions,
+  Terminal,
+  Uri,
+  window,
+  workspace,
+} from "vscode";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -82,18 +90,16 @@ async function resolvePublicKeyPath(): Promise<string | undefined> {
   ];
   let pubKeyPath = candidates.find((p) => fs.existsSync(p));
   if (!pubKeyPath) {
-    const picked = await vscode.window.showOpenDialog({
+    const picked = await window.showOpenDialog({
       canSelectFiles: true,
       canSelectFolders: false,
       canSelectMany: false,
       openLabel: "Select public SSH key (*.pub)",
       filters: { Key: ["pub"] },
-      defaultUri: homeDir
-        ? vscode.Uri.file(path.join(homeDir, ".ssh"))
-        : undefined,
+      defaultUri: homeDir ? Uri.file(path.join(homeDir, ".ssh")) : undefined,
     });
     if (!picked || picked.length === 0) {
-      vscode.window.showErrorMessage(
+      window.showErrorMessage(
         "No SSH public key selected. Cannot configure SSH access.",
       );
       return undefined;
@@ -163,11 +169,11 @@ async function verifySshLogin(hostAlias: string): Promise<boolean> {
     return true;
   }
   if (res.stderr.includes("Bad configuration option")) {
-    vscode.window.showWarningMessage(
+    window.showWarningMessage(
       "SSH config parsing failed due to an invalid option in ~/.ssh/config. Comment out or remove non-standard options, then retry.",
     );
   } else {
-    vscode.window.showWarningMessage(
+    window.showWarningMessage(
       "SSH login to the devcontainer failed. Ensure Docker is running and on your PATH, then retry.",
     );
   }
@@ -185,11 +191,8 @@ export async function setupSshAccess(
   await copyHostDevEnvironment(containerId, user);
 }
 
-export function openSshTerminal(
-  title: string,
-  hostAlias: string,
-): vscode.Terminal {
-  const sshTerminal = vscode.window.createTerminal({
+export function openSshTerminal(title: string, hostAlias: string): Terminal {
+  const sshTerminal = window.createTerminal({
     name: title,
     shellPath: "ssh",
     shellArgs: [hostAlias],
@@ -213,7 +216,7 @@ function ensureSshConfigHostAlias(
   let configText = fs.existsSync(sshConfigPath)
     ? fs.readFileSync(sshConfigPath, "utf8")
     : "";
-  const forwardAgent = vscode.workspace
+  const forwardAgent = workspace
     .getConfiguration(EXTENSION_ID)
     .get<boolean>("forwardSshAgent", true);
   const block = [
@@ -250,7 +253,7 @@ async function ensureSshRemoteExtensionAvailable() {
     "jeanp413.open-remote-ssh",
   ];
   const hasSshRemote = sshExtCandidates.some((id) =>
-    vscode.extensions.getExtension(id),
+    extensions.getExtension(id),
   );
   if (hasSshRemote) {
     return;
@@ -259,19 +262,19 @@ async function ensureSshRemoteExtensionAvailable() {
   // ms-vscode-remote.remote-ssh only runs on official Microsoft builds. Every other
   // build (VSCodium/Codium, Positron, Cursor, ...) must use the open-source alternative,
   // otherwise the ssh-remote authority never resolves and vscode.openFolder silently fails.
-  const isMicrosoftVsCode = (vscode.env.appName || "")
+  const isMicrosoftVsCode = (env.appName || "")
     .toLowerCase()
     .includes("visual studio code");
   const suggestedId = isMicrosoftVsCode
     ? "ms-vscode-remote.remote-ssh"
     : "jeanp413.open-remote-ssh";
-  const choice = await vscode.window.showInformationMessage(
+  const choice = await window.showInformationMessage(
     `An SSH remote extension is required to open the folder over SSH. Install ${suggestedId}?`,
     "Install",
     "Cancel",
   );
   if (choice === "Install") {
-    await vscode.commands.executeCommand(
+    await commands.executeCommand(
       "workbench.extensions.installExtension",
       suggestedId,
     );
@@ -286,21 +289,21 @@ async function ensureSshRemoteExtensionAvailable() {
 // ids are passed in a single invocation so only one SSH connection is established.
 async function installRemoteExtensions(
   hostAlias: string,
-  extensions: string[],
+  extensionIds: string[],
 ): Promise<void> {
-  if (extensions.length === 0) {
+  if (extensionIds.length === 0) {
     return;
   }
   const args = ["--remote", `ssh-remote+${hostAlias}`];
-  for (const id of extensions) {
+  for (const id of extensionIds) {
     args.push("--install-extension", id);
   }
   getLog().appendLine(
-    `Installing ${extensions.length} devcontainer extension(s) on the remote via the editor CLI...`,
+    `Installing ${extensionIds.length} devcontainer extension(s) on the remote via the editor CLI...`,
   );
   const res = await runEditorCliCapture(args);
   if (res.code !== 0) {
-    vscode.window.showWarningMessage(
+    window.showWarningMessage(
       `Some devcontainer extensions may not have installed (editor CLI exited with code ${res.code}). See the devcontainer configuration terminal for details.`,
     );
   }
@@ -333,8 +336,8 @@ export async function sshRuntime(
   fs.writeFileSync(getHandoffMarkerPath(hostAlias), getBufferedLog());
   const folder =
     remoteWorkspaceFolder || `/workspaces/${path.basename(wsFsPath)}`;
-  const remoteUri = vscode.Uri.parse(
+  const remoteUri = Uri.parse(
     `vscode-remote://ssh-remote+${hostAlias}${folder}`,
   );
-  await vscode.commands.executeCommand("vscode.openFolder", remoteUri, false);
+  await commands.executeCommand("vscode.openFolder", remoteUri, false);
 }

@@ -1,9 +1,9 @@
-import vscode from "vscode";
+import { workspace, WorkspaceFolder } from "vscode";
 import path from "node:path";
 import { EXTENSION_ID } from "./constants.ts";
 
-export function getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
-  return vscode.workspace.workspaceFolders?.[0];
+export function getWorkspaceFolder(): WorkspaceFolder | undefined {
+  return workspace.workspaceFolders?.[0];
 }
 
 export function getHomeDir(): string {

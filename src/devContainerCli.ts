@@ -1,4 +1,4 @@
-import vscode from "vscode";
+import { env, ExtensionContext, Uri, window } from "vscode";
 import path from "node:path";
 import { runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";
@@ -21,11 +21,11 @@ function getEnvWithElectronAsNode(): NodeJS.ProcessEnv {
 }
 
 function runCliCapture(
-  ctx: vscode.ExtensionContext,
+  ctx: ExtensionContext,
   args: string[],
   { cwd }: { cwd?: string },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
-  const cliPath = vscode.Uri.joinPath(
+  const cliPath = Uri.joinPath(
     ctx.extensionUri,
     "dist",
     "devcontainers-cli",
@@ -47,7 +47,7 @@ export function runEditorCliCapture(
   args: string[],
   { cwd }: { cwd?: string } = {},
 ): Promise<{ stdout: string; stderr: string; code: number }> {
-  const cliPath = path.join(vscode.env.appRoot, "out", "cli.js");
+  const cliPath = path.join(env.appRoot, "out", "cli.js");
   return runCommandCapture(process.execPath, [cliPath, ...args], {
     cwd,
     env: getEnvWithElectronAsNode(),
@@ -85,7 +85,7 @@ function parseUpResult(output: string) {
 }
 
 export async function devcontainerUp(
-  ctx: vscode.ExtensionContext,
+  ctx: ExtensionContext,
   wsFsPath: string,
   options?: { rebuild?: boolean },
 ): Promise<DevcontainerUpResult> {
@@ -94,7 +94,7 @@ export async function devcontainerUp(
     args.push("--remove-existing-container");
   }
   if (options?.rebuild) {
-    vscode.window.showInformationMessage("Rebuilding devcontainer...");
+    window.showInformationMessage("Rebuilding devcontainer...");
   }
   const { code, stderr, stdout } = await runCliCapture(ctx, args, {
     cwd: wsFsPath,
@@ -127,7 +127,7 @@ function isEntryObject(entry: unknown): entry is Record<string, unknown> {
 // array of { extensions, settings } entries (one per contributing source), so we
 // concatenate the extension lists and merge the settings objects in source order.
 export async function readMergedCustomizations(
-  ctx: vscode.ExtensionContext,
+  ctx: ExtensionContext,
   wsFsPath: string,
 ): Promise<DevcontainerCustomizations> {
   const empty: DevcontainerCustomizations = { extensions: [], settings: {} };
