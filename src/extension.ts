@@ -156,21 +156,8 @@ export function activate(context: vscode.ExtensionContext) {
       has,
     );
   }
-  // Initialize context and watch for changes to devcontainer.json
+  // Initialize context
   void updateDevcontainerContext();
-  const initialWorkspaceFolder = getWorkspaceFolder();
-  if (initialWorkspaceFolder) {
-    const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(
-        initialWorkspaceFolder,
-        ".devcontainer/devcontainer.json",
-      ),
-    );
-    watcher.onDidCreate(updateDevcontainerContext);
-    watcher.onDidDelete(updateDevcontainerContext);
-    watcher.onDidChange(updateDevcontainerContext);
-    context.subscriptions.push(watcher);
-  }
 
   // The alias of the container this window is connected to, if it is one of ours.
   function getConnectedHostAlias(): string | undefined {
@@ -195,6 +182,43 @@ export function activate(context: vscode.ExtensionContext) {
       return undefined;
     }
     return decodeLocalFolder(authority);
+  }
+
+  // When connected to one of our containers and devcontainer.json changes on disk, offer to
+  // rebuild so the edits take effect, mirroring the official Dev Containers extension. Only
+  // shown while connected: from a local window there is no running container to rebuild.
+  async function promptRebuildOnConfigChange() {
+    if (!getConnectedHostAlias() && !getConnectedContainerLocalFolder()) {
+      return;
+    }
+    const rebuild = "Rebuild";
+    const choice = await vscode.window.showInformationMessage(
+      "Configuration file changed: devcontainer.json. The container might need to be rebuilt to apply the changes.",
+      rebuild,
+      "Ignore",
+    );
+    if (choice === rebuild) {
+      await vscode.commands.executeCommand(`${EXTENSION_ID}.rebuildAndOpen`);
+    }
+  }
+
+  // Watch for changes to devcontainer.json to keep the hasConfig context in sync and, while
+  // connected, prompt to rebuild so edits take effect.
+  const initialWorkspaceFolder = getWorkspaceFolder();
+  if (initialWorkspaceFolder) {
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(
+        initialWorkspaceFolder,
+        ".devcontainer/devcontainer.json",
+      ),
+    );
+    watcher.onDidCreate(updateDevcontainerContext);
+    watcher.onDidDelete(updateDevcontainerContext);
+    watcher.onDidChange(() => {
+      void updateDevcontainerContext();
+      void promptRebuildOnConfigChange();
+    });
+    context.subscriptions.push(watcher);
   }
 
   async function openFolderWithSsh(
@@ -317,21 +341,21 @@ export function activate(context: vscode.ExtensionContext) {
       { appendToOutput: false },
     )();
   }
-  void resumePendingReopenIfAny();
 
-  // On activation in a local window, suggest reopening in the container when the folder is
-  // configured for one, mirroring the official Dev Containers extension. Suppressed while
-  // connected (nothing to reopen) and once the user dismisses it for this folder.
+  // Don't prompt if we're already in the process of reopening.
+  const isReopening = Boolean(
+    context.globalState.get<PendingReopen>(PENDING_REOPEN_KEY),
+  );
   async function promptReopenInContainerIfConfigured() {
-    if (vscode.env.remoteName) {
+    if (
+      vscode.env.remoteName ||
+      isReopening ||
+      context.workspaceState.get<boolean>(DONT_PROMPT_REOPEN_KEY) ||
+      !(await hasDevcontainerConfig(getWorkspaceFolder()))
+    ) {
       return;
     }
-    if (context.workspaceState.get<boolean>(DONT_PROMPT_REOPEN_KEY)) {
-      return;
-    }
-    if (!(await hasDevcontainerConfig(getWorkspaceFolder()))) {
-      return;
-    }
+
     const reopen = "Reopen in Container";
     const dontShowAgain = "Don't Show Again";
     const choice = await vscode.window.showInformationMessage(
@@ -348,6 +372,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
   void promptReopenInContainerIfConfigured();
+
+  void resumePendingReopenIfAny();
 
   const openFolderInDevcontainer = vscode.commands.registerCommand(
     `${EXTENSION_ID}.openFolderInDevcontainer`,
