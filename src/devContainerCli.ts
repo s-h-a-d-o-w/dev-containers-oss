@@ -1,6 +1,6 @@
 import vscode from "vscode";
 import path from "node:path";
-import { runCommandCapture } from "./core.ts";
+import { runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";
 
 export type DevcontainerUpResult = {
@@ -16,7 +16,7 @@ export type DevcontainerCustomizations = {
 
 // The extension host runs on the Electron/Node binary at process.execPath.
 // Setting ELECTRON_RUN_AS_NODE lets us execute the bundled devcontainer CLI as a plain Node script.
-function getNodeEnv(): NodeJS.ProcessEnv {
+function getEnvWithElectronAsNode(): NodeJS.ProcessEnv {
   return { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
 }
 
@@ -35,7 +35,7 @@ function runCliCapture(
   ).fsPath;
   return runCommandCapture(process.execPath, [cliPath, ...args], {
     cwd,
-    env: getNodeEnv(),
+    env: getEnvWithElectronAsNode(),
     quiet: true,
   });
 }
@@ -50,7 +50,7 @@ export function runEditorCliCapture(
   const cliPath = path.join(vscode.env.appRoot, "out", "cli.js");
   return runCommandCapture(process.execPath, [cliPath, ...args], {
     cwd,
-    env: getNodeEnv(),
+    env: getEnvWithElectronAsNode(),
   });
 }
 

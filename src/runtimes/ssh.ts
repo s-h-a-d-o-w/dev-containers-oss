@@ -2,7 +2,8 @@ import vscode from "vscode";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getHomeDir, getHostAlias, runCommandCapture } from "../core";
+import { getHomeDir, getHostAlias } from "../utilities";
+import { runCommandCapture } from "../runCommands";
 import {
   DevcontainerCustomizations,
   runEditorCliCapture,

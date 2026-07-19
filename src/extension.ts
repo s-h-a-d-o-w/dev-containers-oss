@@ -1,7 +1,7 @@
 import vscode from "vscode";
 import fs from "node:fs";
 import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";
-import { getWorkspaceFolder } from "./core.ts";
+import { getWorkspaceFolder } from "./utilities.ts";
 import {
   createLogTerminal,
   getLog,
