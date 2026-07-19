@@ -2,7 +2,8 @@ import vscode from "vscode";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { getHomeDir, getLog, runCommand, runCommandCapture } from "./core.ts";
+import { getHomeDir, runCommand, runCommandCapture } from "./core.ts";
+import { getLog } from "./log.ts";
 import { EXTENSION_ID } from "./constants.ts";
 import { getServerDataFolderName } from "./hostInfo.ts";
 

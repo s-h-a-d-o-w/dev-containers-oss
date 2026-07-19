@@ -1,15 +1,17 @@
 import vscode from "vscode";
 import fs from "node:fs";
 import {
-  createLogTerminal,
   devcontainerUp,
-  getLog,
   getWorkspaceFolder,
   readMergedCustomizations,
+} from "./core.ts";
+import {
+  createLogTerminal,
+  getLog,
   resetLog,
   setDevMode,
   withLogTerminal,
-} from "./core.ts";
+} from "./log.ts";
 import {
   getHandoffMarkerPath,
   sshRuntime,

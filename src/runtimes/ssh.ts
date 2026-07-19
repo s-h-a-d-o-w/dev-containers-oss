@@ -4,13 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import {
   DevcontainerCustomizations,
-  getBufferedLog,
   getHomeDir,
   getHostAlias,
-  getLog,
   runCommandCapture,
   runEditorCliCapture,
 } from "../core";
+import { getBufferedLog, getLog } from "../log";
 import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,

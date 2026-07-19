@@ -7,12 +7,9 @@ import type { ProductInfo } from "../types.ts";
 import {
   DevcontainerUpResult,
   devcontainerUp,
-  getLog,
-  logBuildInfo,
   readMergedCustomizations,
-  resetLog,
-  withLogTerminal,
 } from "../core.ts";
+import { getLog, logBuildInfo, resetLog, withLogTerminal } from "../log.ts";
 import { EXTENSION_ID } from "../constants.ts";
 import {
   applyRemoteMachineSettings,
