@@ -24,15 +24,15 @@
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
   "main": "./dist/extension.js",
   "scripts": {
-    "dev": "node esbuild.mts --watch",
+    "dev": "node esbuild.ts --watch",
     "lint": "oxlint --report-unused-disable-directives-severity=error",
     "format": "oxfmt",
     "typecheck": "tsc --noEmit",
-    "vsce:package": "vsce package",
-    "build": "node esbuild.mts --production",
-    "package": "pnpm build",
+    "build": "node esbuild.ts --production",
+    "package": "pnpm build && vsce package --no-dependencies",
     "prepare": "husky"
   },
   "dependencies": {
