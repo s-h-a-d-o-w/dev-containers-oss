@@ -28,7 +28,7 @@
   "main": "./dist/extension.js",
   "scripts": {
     "dev": "node esbuild.ts --watch",
-    "lint": "oxlint --report-unused-disable-directives-severity=error",
+    "lint": "oxlint",
     "format": "oxfmt",
     "typecheck": "tsc --noEmit",
     "build": "node esbuild.ts --production",
@@ -39,6 +39,7 @@
     "@devcontainers/cli": "^0.87.0"
   },
   "devDependencies": {
+    "@s-h-a-d-o-w/oxlint-config": "^1.1.2",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.125.0",
     "@vscode/vsce": "^3.9.2",

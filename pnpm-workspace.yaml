@@ -2,3 +2,5 @@ allowBuilds:
   '@vscode/vsce-sign': true
   esbuild: true
   keytar: true
+minimumReleaseAgeExclude:
+  - '@s-h-a-d-o-w/oxlint-config@1.0.5 || 1.1.2'
