@@ -24,14 +24,13 @@
     "README.md",
     "LICENSE"
   ],
-  "type": "module",
   "main": "./dist/extension.js",
   "scripts": {
-    "dev": "node esbuild.ts --watch",
+    "dev": "node esbuild.mts --watch",
     "lint": "oxlint",
     "format": "oxfmt",
     "typecheck": "tsc --noEmit",
-    "build": "node esbuild.ts --production",
+    "build": "node esbuild.mts --production",
     "package": "pnpm build && vsce package --no-dependencies",
     "prepare": "husky"
   },
