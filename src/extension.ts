@@ -1,5 +1,4 @@
-import { basename } from "node:path";
-import { createHash } from "node:crypto";
+import path from "node:path";
 import {
   commands,
   env,
@@ -155,7 +154,7 @@ export function activate(context: ExtensionContext) {
         return;
       }
       void updateDevcontainerContext();
-      void promptRebuildOnConfigChange(basename(uri.fsPath));
+      void promptRebuildOnConfigChange(path.basename(uri.fsPath));
     };
 
     watcher.onDidCreate(onConfigChanged);
