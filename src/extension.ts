@@ -10,20 +10,14 @@ import {
   workspace,
   type WorkspaceFolder,
 } from "vscode";
-import fs from "node:fs";
 import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";
 import { getWorkspaceFolder } from "./utilities.ts";
+import { getLog, resetLog, setDevMode, withLogTerminal } from "./log.ts";
 import {
-  createLogTerminal,
-  getLog,
-  resetLog,
-  setDevMode,
-  withLogTerminal,
-} from "./log.ts";
-import {
-  getHandoffMarkerPath,
-  sshRuntime,
+  getConnectedHostAlias,
   resolveLocalWorkspaceFolder,
+  showHandoffLogIfPresent,
+  sshRuntime,
 } from "./runtimes/ssh.ts";
 import {
   AUTHORITY_PREFIX,
@@ -33,17 +27,8 @@ import {
 } from "./runtimes/native.ts";
 import { EXTENSION_ID } from "./constants.ts";
 
-const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
 const CONTAINER_AUTHORITY_PREFIX = `${AUTHORITY_PREFIX}+`;
-
-// Global-state key holding a rebuild/reopen that must finish from a local window. When the
-// command is triggered inside the container, we cannot rebuild in place (removing the
-// container drops this window's SSH connection), so we stash the request, reopen the host
-// folder locally, and resume it there on the next activation.
 const PENDING_REOPEN_KEY = `${EXTENSION_ID}.pendingReopen`;
-
-// Workspace-scoped flag set when the user picks "Don't Show Again" on the reopen prompt,
-// so the suggestion is suppressed for this folder only (not globally).
 const DONT_PROMPT_REOPEN_KEY = `${EXTENSION_ID}.dontPromptReopen`;
 
 type PendingReopen = {
@@ -58,45 +43,6 @@ function isNativeRuntimeAvailable(): boolean {
     typeof workspace.registerRemoteAuthorityResolver === "function" &&
     typeof ManagedResolvedAuthority === "function"
   );
-}
-
-// Render the handed-off setup log in a read-only terminal that closes on any keypress,
-// mirroring the official Dev Containers extension. The captured text is printed locally
-// (this UI extension cannot cat the container-side file) and, since the log is already
-// complete, the terminal is finished immediately.
-function showLogInReadOnlyTerminal(logText: string) {
-  const term = createLogTerminal("Devcontainer Configuration");
-  term.write(logText.endsWith("\n") ? logText : logText + "\n");
-  term.finish();
-}
-
-// When the folder has just reopened inside the container over SSH, surface the setup log
-// that the launching window handed off. This extension runs as a UI (local) extension in
-// the reopened window, so the marker lives on the local host and is keyed by the window's
-// host alias; the log itself lives in the container and is shown via a remote terminal.
-// Consuming (deleting) the marker keeps this to the first activation only, so later
-// reloads of the same window do not reopen the terminal.
-function showHandoffLogIfPresent() {
-  if (!env.remoteName) {
-    return;
-  }
-  const authority = workspace.workspaceFolders?.[0]?.uri.authority ?? "";
-  if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) {
-    return;
-  }
-  const hostAlias = authority.slice(SSH_REMOTE_AUTHORITY_PREFIX.length);
-  const markerPath = getHandoffMarkerPath(hostAlias);
-  if (!fs.existsSync(markerPath)) {
-    return;
-  }
-  let logText = "";
-  try {
-    logText = fs.readFileSync(markerPath, "utf8");
-    fs.unlinkSync(markerPath);
-  } catch {
-    // if we cannot read/remove the marker, still show whatever we have
-  }
-  showLogInReadOnlyTerminal(logText);
 }
 
 function getConfigUri(ws: WorkspaceFolder) {
@@ -135,21 +81,17 @@ export function activate(context: ExtensionContext) {
 
   // Register the native remote resolver so folders can be opened directly inside the
   // container over a docker-exec tunnel (no SSH), via the `dev-containers-oss+` authority.
-  // Only possible when the `resolvers` proposed API is available; otherwise every action
-  // routes through the SSH runtime.
   const nativeAvailable = isNativeRuntimeAvailable();
   if (nativeAvailable) {
     context.subscriptions.push(...registerRemoteResolver(context));
   }
 
-  // Resolve the config via the VS Code filesystem API rather than Node's fs: while
-  // connected this extension runs on the UI (local) host, but the workspace lives on the
-  // remote, so fs.existsSync on the remote fsPath would always miss.
   async function hasDevcontainerConfig(ws: WorkspaceFolder | undefined) {
     if (!ws) {
       return false;
     }
     try {
+      // Resolve the config via the VS Code filesystem API rather than Node's fs: When we're "running" in the dev container, the extension is still on the host and fs.existsSync would run on the local machine.
       await workspace.fs.stat(getConfigUri(ws));
       return true;
     } catch {
@@ -168,18 +110,6 @@ export function activate(context: ExtensionContext) {
   // Initialize context
   void updateDevcontainerContext();
 
-  // The alias of the container this window is connected to, if it is one of ours.
-  function getConnectedHostAlias(): string | undefined {
-    if (!env.remoteName) {
-      return undefined;
-    }
-    const authority = getWorkspaceFolder()?.uri.authority ?? "";
-    if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) {
-      return undefined;
-    }
-    return authority.slice(SSH_REMOTE_AUTHORITY_PREFIX.length);
-  }
-
   // The host-side folder of the native (managed) container this window is connected to, if
   // any. The local path is encoded straight into the authority, so no lookup is needed.
   function getConnectedContainerLocalFolder(): string | undefined {
@@ -193,9 +123,6 @@ export function activate(context: ExtensionContext) {
     return decodeLocalFolder(authority);
   }
 
-  // When connected to one of our containers and devcontainer.json changes on disk, offer to
-  // rebuild so the edits take effect, mirroring the official Dev Containers extension. Only
-  // shown while connected: from a local window there is no running container to rebuild.
   async function promptRebuildOnConfigChange() {
     if (!getConnectedHostAlias() && !getConnectedContainerLocalFolder()) {
       return;
@@ -211,8 +138,7 @@ export function activate(context: ExtensionContext) {
     }
   }
 
-  // Watch for changes to devcontainer.json to keep the hasConfig context in sync and, while
-  // connected, prompt to rebuild so edits take effect.
+  // Rebuild prompt on devcontainer.json changes.
   const initialWorkspaceFolder = getWorkspaceFolder();
   if (initialWorkspaceFolder) {
     const watcher = workspace.createFileSystemWatcher(
@@ -305,8 +231,7 @@ export function activate(context: ExtensionContext) {
 
   // Single entry point for opening/rebuilding a devcontainer. When already connected we
   // stay on whichever runtime the current window uses (its authority tells us which). For
-  // a fresh open from a local window we prefer the native runtime and fall back to SSH
-  // when the proposed API is unavailable, so users never have to pick a runtime.
+  // a fresh open from a local window we prefer the native runtime and fall back to SSH.
   async function openDevcontainer(forceRebuild: boolean): Promise<void> {
     if (getConnectedHostAlias()) {
       await useSsh(forceRebuild);

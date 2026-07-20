@@ -10,13 +10,13 @@ import {
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { getHomeDir, getHostAlias } from "../utilities";
+import { getHomeDir, getHostAlias, getWorkspaceFolder } from "../utilities";
 import { runCommandCapture } from "../runCommands";
 import {
   type DevcontainerCustomizations,
   runEditorCliCapture,
 } from "../devContainerCli";
-import { getBufferedLog, getLog } from "../log";
+import { createLogTerminal, getBufferedLog, getLog } from "../log";
 import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,
@@ -27,14 +27,60 @@ import {
 } from "../dockerOps";
 import { EXTENSION_ID } from "../constants";
 
+export const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
+
+// The alias of the SSH container this window is connected to, if it is one of ours.
+export function getConnectedHostAlias(): string | undefined {
+  if (!env.remoteName) {
+    return undefined;
+  }
+  const authority = getWorkspaceFolder()?.uri.authority ?? "";
+  if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) {
+    return undefined;
+  }
+  return authority.slice(SSH_REMOTE_AUTHORITY_PREFIX.length);
+}
+
 // Local (host-side) marker whose presence tells the reopened window to display the log
-// once, and whose contents carry the log text itself. The reopened window runs this
-// extension as a UI (local) extension, so it can only read the marker on the local
-// filesystem, not inside the container; keeping the log in the marker lets it render the
-// text locally without reaching into the container. Keyed by host alias so it only
-// triggers for the window we just launched.
+// once, and whose contents carry the log text itself.
 export function getHandoffMarkerPath(hostAlias: string): string {
   return path.join(os.tmpdir(), `${EXTENSION_ID}-handoff-${hostAlias}.pending`);
+}
+
+// Render the handed-off setup log in a read-only terminal that closes on any keypress.
+function showLogInReadOnlyTerminal(logText: string) {
+  const term = createLogTerminal("Devcontainer Configuration");
+  term.write(logText.endsWith("\n") ? logText : logText + "\n");
+  term.finish();
+}
+
+// When the folder has just reopened inside the container over SSH, surface the setup log
+// that the launching window handed off. This extension runs as a UI (local) extension in
+// the reopened window, so the marker lives on the local host and is keyed by the window's
+// host alias; the log itself lives in the container and is shown via a remote terminal.
+// Consuming (deleting) the marker keeps this to the first activation only, so later
+// reloads of the same window do not reopen the terminal.
+export function showHandoffLogIfPresent() {
+  if (!env.remoteName) {
+    return;
+  }
+  const authority = workspace.workspaceFolders?.[0]?.uri.authority ?? "";
+  if (!authority.startsWith(SSH_REMOTE_AUTHORITY_PREFIX)) {
+    return;
+  }
+  const hostAlias = authority.slice(SSH_REMOTE_AUTHORITY_PREFIX.length);
+  const markerPath = getHandoffMarkerPath(hostAlias);
+  if (!fs.existsSync(markerPath)) {
+    return;
+  }
+  let logText = "";
+  try {
+    logText = fs.readFileSync(markerPath, "utf8");
+    fs.unlinkSync(markerPath);
+  } catch {
+    // if we cannot read/remove the marker, still show whatever we have
+  }
+  showLogInReadOnlyTerminal(logText);
 }
 
 // Recover the container id that Open-Remote-SSH tunnels through, from the ProxyCommand
