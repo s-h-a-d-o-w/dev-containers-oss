@@ -62,6 +62,13 @@ export function getBufferedLog(): string {
   return logBuffer;
 }
 
+// Seed the buffer with output captured in another window (e.g. the build log handed off by
+// the launching window during rebuild/reopen) so the next terminal replays it instead of
+// starting empty.
+export function setBufferedLog(text: string): void {
+  logBuffer = text;
+}
+
 // Render setup output in a read-only terminal, mirroring the official Dev Containers
 // extension. A Pseudoterminal has no live shell for the user to type into; writes made
 // before the terminal is opened are buffered so nothing is lost. Once finish() is called,

@@ -15,6 +15,7 @@ import {
 } from "vscode";
 import fs from "node:fs";
 import net from "node:net";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ProductInfo } from "../types.ts";
 import {
@@ -22,7 +23,14 @@ import {
   devcontainerUp,
   readMergedCustomizations,
 } from "../devContainerCli.ts";
-import { getLog, logBuildInfo, resetLog, withLogTerminal } from "../log.ts";
+import {
+  getBufferedLog,
+  getLog,
+  logBuildInfo,
+  resetLog,
+  setBufferedLog,
+  withLogTerminal,
+} from "../log.ts";
 import { EXTENSION_ID } from "../constants.ts";
 import {
   applyRemoteMachineSettings,
@@ -48,6 +56,34 @@ export function decodeLocalFolder(authority: string): string {
   const plus = authority.indexOf("+");
   const hex = plus !== -1 ? authority.slice(plus + 1) : authority;
   return Buffer.from(hex, "hex").toString("utf8");
+}
+
+// Local (host-side) marker carrying the build log that the launching window printed before
+// it reopened the folder in the container. nativeRuntime and the remote resolver run in
+// different windows (separate extension-host processes), so the in-memory log buffer cannot
+// cross that boundary; persisting it to a temp file lets the resolver replay it in the
+// reopened window's setup terminal. Keyed by the workspace folder so it only fires for the
+// window we just launched.
+function getHandoffMarkerPath(localFolder: string): string {
+  const key = Buffer.from(localFolder, "utf8").toString("hex");
+  return path.join(tmpdir(), `${EXTENSION_ID}-native-handoff-${key}.pending`);
+}
+
+// Read and delete the handoff marker for this folder, returning its contents when present.
+// Consuming it keeps the replay to the first resolve after a reopen, so later reconnects
+// (which run no fresh build) start with an empty buffer.
+function consumeHandoffLog(localFolder: string): string | undefined {
+  const markerPath = getHandoffMarkerPath(localFolder);
+  if (!fs.existsSync(markerPath)) {
+    return undefined;
+  }
+  try {
+    const text = fs.readFileSync(markerPath, "utf8");
+    fs.unlinkSync(markerPath);
+    return text;
+  } catch {
+    return undefined;
+  }
 }
 
 // The REH (remote extension host / server) build we install into the container must match
@@ -523,8 +559,15 @@ export function registerRemoteResolver(
   const resolver: RemoteAuthorityResolver = {
     async resolve(authority) {
       const localFolder = decodeLocalFolder(authority);
-      resetLog();
-      logBuildInfo();
+
+      const handoffLog = consumeHandoffLog(localFolder);
+      if (handoffLog === undefined) {
+        resetLog();
+        logBuildInfo();
+      } else {
+        setBufferedLog(handoffLog);
+      }
+
       try {
         const up = await devcontainerUp(context, localFolder);
         // Setup output is streamed into a read-only terminal inside here, but only on first
@@ -554,9 +597,7 @@ export function registerRemoteResolver(
   ] satisfies Disposable[];
 }
 
-// Bring the container up so we know its in-container workspace path, then open a window
-// bound to our managed authority. The resolver reuses the same (now running) container
-// when that window connects.
+// Bring the container up, then open a window bound to our managed authority. The resolver reuses the same (now running) container when that window connects.
 export async function nativeRuntime(
   context: ExtensionContext,
   localFolder: string,
@@ -568,6 +609,8 @@ export async function nativeRuntime(
   const up = await withLogTerminal("Devcontainer Configuration", () =>
     devcontainerUp(context, localFolder, { rebuild: forceRebuild }),
   );
+  // Hand the build log off to the window we are about to open.
+  fs.writeFileSync(getHandoffMarkerPath(localFolder), getBufferedLog());
 
   const authority = encodeAuthority(localFolder);
   const folder =
