@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { createHash } from "node:crypto";
 import {
   commands,
   env,
@@ -48,13 +49,6 @@ function isNativeRuntimeAvailable(): boolean {
 
 function getConfigUri(ws: WorkspaceFolder) {
   return Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
-}
-
-// Suffixes appended by editors/VCS tooling to files. These may not even exist on disk.
-const IGNORED_CHANGE_SUFFIXES = [".git", ".orig", ".tmp", ".swp", ".bak", "~"];
-function isRelevantConfigChange(fsPath: string): boolean {
-  const name = basename(fsPath);
-  return !IGNORED_CHANGE_SUFFIXES.some((suffix) => name.endsWith(suffix));
 }
 
 function getWorkspaceOrThrow(): WorkspaceFolder {
@@ -152,13 +146,18 @@ export function activate(context: ExtensionContext) {
     const watcher = workspace.createFileSystemWatcher(
       new RelativePattern(initialWorkspaceFolder, ".devcontainer/**"),
     );
+
     const onConfigChanged = (uri: Uri) => {
-      if (!isRelevantConfigChange(uri.fsPath)) {
+      // vscode causes change events with schemes such as `git` when e.g. staging files. The file
+      // on disk is untouched => Only react to the workspace folder's own filesystem scheme
+      // (`file`, or `vscode-remote` when connected to a container).
+      if (uri.scheme !== initialWorkspaceFolder.uri.scheme) {
         return;
       }
       void updateDevcontainerContext();
       void promptRebuildOnConfigChange(basename(uri.fsPath));
     };
+
     watcher.onDidCreate(onConfigChanged);
     watcher.onDidDelete(onConfigChanged);
     watcher.onDidChange(onConfigChanged);
