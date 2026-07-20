@@ -23,7 +23,7 @@ function getEnvWithElectronAsNode(): NodeJS.ProcessEnv {
 function runCliCapture(
   ctx: ExtensionContext,
   args: string[],
-  { cwd }: { cwd?: string },
+  { cwd, quiet = true }: { cwd?: string; quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const cliPath = Uri.joinPath(
     ctx.extensionUri,
@@ -36,7 +36,7 @@ function runCliCapture(
   return runCommandCapture(process.execPath, [cliPath, ...args], {
     cwd,
     env: getEnvWithElectronAsNode(),
-    quiet: true,
+    quiet,
   });
 }
 
@@ -98,6 +98,7 @@ export async function devcontainerUp(
   }
   const { code, stderr, stdout } = await runCliCapture(ctx, args, {
     cwd: wsFsPath,
+    quiet: false,
   });
   const result = parseUpResult(stdout) ?? parseUpResult(stderr);
   if (code !== 0 || result?.outcome !== "success") {
