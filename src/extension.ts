@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import {
   commands,
   env,
@@ -47,6 +48,13 @@ function isNativeRuntimeAvailable(): boolean {
 
 function getConfigUri(ws: WorkspaceFolder) {
   return Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
+}
+
+// Suffixes appended by editors/VCS tooling to files. These may not even exist on disk.
+const IGNORED_CHANGE_SUFFIXES = [".git", ".orig", ".tmp", ".swp", ".bak", "~"];
+function isRelevantConfigChange(fsPath: string): boolean {
+  const name = basename(fsPath);
+  return !IGNORED_CHANGE_SUFFIXES.some((suffix) => name.endsWith(suffix));
 }
 
 function getWorkspaceOrThrow(): WorkspaceFolder {
@@ -123,13 +131,13 @@ export function activate(context: ExtensionContext) {
     return decodeLocalFolder(authority);
   }
 
-  async function promptRebuildOnConfigChange() {
+  async function promptRebuildOnConfigChange(changedFile: string) {
     if (!getConnectedHostAlias() && !getConnectedContainerLocalFolder()) {
       return;
     }
     const rebuild = "Rebuild";
     const choice = await window.showInformationMessage(
-      "Configuration file changed: devcontainer.json. The container might need to be rebuilt to apply the changes.",
+      `Configuration file changed: ${changedFile}. The container might need to be rebuilt to apply the changes.`,
       rebuild,
       "Ignore",
     );
@@ -138,21 +146,22 @@ export function activate(context: ExtensionContext) {
     }
   }
 
-  // Rebuild prompt on devcontainer.json changes.
+  // Rebuild prompt on changes in .devcontainer
   const initialWorkspaceFolder = getWorkspaceFolder();
   if (initialWorkspaceFolder) {
     const watcher = workspace.createFileSystemWatcher(
-      new RelativePattern(
-        initialWorkspaceFolder,
-        ".devcontainer/devcontainer.json",
-      ),
+      new RelativePattern(initialWorkspaceFolder, ".devcontainer/**"),
     );
-    watcher.onDidCreate(updateDevcontainerContext);
-    watcher.onDidDelete(updateDevcontainerContext);
-    watcher.onDidChange(() => {
+    const onConfigChanged = (uri: Uri) => {
+      if (!isRelevantConfigChange(uri.fsPath)) {
+        return;
+      }
       void updateDevcontainerContext();
-      void promptRebuildOnConfigChange();
-    });
+      void promptRebuildOnConfigChange(basename(uri.fsPath));
+    };
+    watcher.onDidCreate(onConfigChanged);
+    watcher.onDidDelete(onConfigChanged);
+    watcher.onDidChange(onConfigChanged);
     context.subscriptions.push(watcher);
   }
 
