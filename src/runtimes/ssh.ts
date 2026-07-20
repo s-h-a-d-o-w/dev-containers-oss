@@ -16,7 +16,12 @@ import {
   type DevcontainerCustomizations,
   runEditorCliCapture,
 } from "../devContainerCli";
-import { createLogTerminal, getBufferedLog, getLog } from "../log";
+import {
+  getBufferedLog,
+  getLog,
+  setBufferedLog,
+  withLogTerminal,
+} from "../log";
 import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,
@@ -47,20 +52,13 @@ export function getHandoffMarkerPath(hostAlias: string): string {
   return path.join(os.tmpdir(), `${EXTENSION_ID}-handoff-${hostAlias}.pending`);
 }
 
-// Render the handed-off setup log in a read-only terminal that closes on any keypress.
-function showLogInReadOnlyTerminal(logText: string) {
-  const term = createLogTerminal("Devcontainer Configuration");
-  term.write(logText.endsWith("\n") ? logText : logText + "\n");
-  term.finish();
-}
-
 // When the folder has just reopened inside the container over SSH, surface the setup log
 // that the launching window handed off. This extension runs as a UI (local) extension in
 // the reopened window, so the marker lives on the local host and is keyed by the window's
 // host alias; the log itself lives in the container and is shown via a remote terminal.
 // Consuming (deleting) the marker keeps this to the first activation only, so later
 // reloads of the same window do not reopen the terminal.
-export function showHandoffLogIfPresent() {
+export async function showHandoffLogIfPresent(): Promise<void> {
   if (!env.remoteName) {
     return;
   }
@@ -80,7 +78,10 @@ export function showHandoffLogIfPresent() {
   } catch {
     // if we cannot read/remove the marker, still show whatever we have
   }
-  showLogInReadOnlyTerminal(logText);
+
+  setBufferedLog(logText);
+  // Unlike the native window there is no further setup to stream here, so the body is a no-op.
+  await withLogTerminal("Devcontainer Configuration", () => Promise.resolve());
 }
 
 // Recover the container id that Open-Remote-SSH tunnels through, from the ProxyCommand

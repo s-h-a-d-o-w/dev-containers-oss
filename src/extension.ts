@@ -77,7 +77,7 @@ function withUiErrorHandling(
 export function activate(context: ExtensionContext) {
   setDevMode(context.extensionMode === ExtensionMode.Development);
 
-  showHandoffLogIfPresent();
+  void showHandoffLogIfPresent(); // SSH-only
 
   // Register the native remote resolver so folders can be opened directly inside the
   // container over a docker-exec tunnel (no SSH), via the `dev-containers-oss+` authority.
