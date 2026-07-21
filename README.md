@@ -1,8 +1,8 @@
 # Dev Containers OSS
 
-Alternative to the proprietary VS Code Dev Containers extension for VSCodium and other VS Code-based IDEs that don't have their own solution. Uses the open-source [Dev Containers CLI](https://github.com/devcontainers/cli) to build/run your container per the full devcontainer spec, then opens your folder inside it either natively or over SSH.
+Alternative to the proprietary VS Code Dev Containers extension for VSCodium and other VS Code-based IDEs that don't have their own dev containers support.
 
-**Note that this uses proposed vscode APIs (just like the official extension), which are subject to change at any time. Which means that any IDE update may break functionality in this extension. (I hope that it will be simple enough to update the API and make adjustments should it ever become necessary but... you should be aware of this risk.)**
+**PLEASE NOTE:** This uses proposed vscode APIs (just like the official extension), which are subject to change at any time. Which means that any IDE update may cause this extension to stop working.
 
 ## Getting started
 
@@ -12,26 +12,54 @@ Don't forget to make your SSH key available if you want to commit through the UI
 
 ## Differences to the official extension
 
-- You have to create the devcontainer config through code, like:
+- No devcontainer config creation through menus ([as e.g. shown here](https://code.visualstudio.com/docs/devcontainers/tutorial#_get-the-sample)). `.devcontainer/devcontainer.json` has to be created manually, like for example:
 
 ```json
 {
-  "image": "mcr.microsoft.com/devcontainers/javascript-node"
+  // Available base images: https://github.com/devcontainers/images/tree/main/src
+  "image": "mcr.microsoft.com/devcontainers/javascript-node",
+
+  // Official feature browser: https://containers.dev/features
+  "features": {
+    "ghcr.io/devcontainers-extra/features/direnv:1": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
+      // Extensions that don't work if not installed within the devcontainer
+      "extensions": [
+        "ms-playwright.playwright",
+        "eamodio.gitlens",
+        "oxc.oxc-vscode"
+      ]
+    }
+  }
 }
 ```
 
-- More minimal feature set. But I believe all the necessary basics that make working with dev containers convenient are there.
+[See my custom feature repo here](https://github.com/s-h-a-d-o-w/devcontainers-features) for a more elaborate example suitable for web development. pnpm store and zsh history shared across containers and customized shell.
+
+- Features are limited to the basics - conveniently building/rebuilding and connecting to containers through the connect menu (bottom left corner) and notifications.
+
+![Prompt screenshot](./assets/prompt-screenshot.png "Prompt screenshot")
+
+- No container connection until most of the setup is done. vscode is more eager here, which I don't think is good. Because if you have a post create script that takes a bit to finish, the official extension connects you before the environment is ready.
 
 ### SSH fallback
 
-Requires the extension `jeanp413.open-remote-ssh`.
+Is automatically used if your IDE version doesn't offer the necessary APIs for "native" dev container connection.
 
-If native dev container functionality isn't available, you will be connected to the containers through SSH. If that's the case for you, please follow the setup instructions here: https://github.com/DDorch/codium-devcontainer (While I have changed a lot of things compared to that project, the basic setting up for SSH connection has stayed the same.)
+Requires the extension `jeanp413.open-remote-ssh`. You will be prompted for installation if you don't have it already installed.
+
+Also, a local SSH public key is needed (e.g., `~/.ssh/id_ed25519.pub` or `~/.ssh/id_rsa.pub`). If you only have private one, use e.g. `ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub`.
 
 ## Troubleshooting
 
-- Docker permissions: ensure your user can run Docker commands without sudo, and that `docker` is on your `PATH` (the SSH ProxyCommand invokes `docker exec`).
+- Docker permissions: Ensure your user can run Docker commands without sudo, and that `docker` is available globally.
 
 ## Acknowledgements
 
-This extension is very loosely based on: https://github.com/DDorch/codium-devcontainer
+This extension (in particular the SSH fallback) is very loosely based on: https://github.com/DDorch/codium-devcontainer
