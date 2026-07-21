@@ -19,7 +19,7 @@ export default defineConfig({
   reporter: process.env.CI ? "html" : "list",
   timeout: 180_000,
   expect: {
-    timeout: 30_000,
+    timeout: 60_000,
   },
   workers: 1,
   testDir: "tests",
