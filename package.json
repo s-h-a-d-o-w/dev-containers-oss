@@ -26,6 +26,7 @@
   ],
   "main": "./dist/extension.js",
   "scripts": {
+    "e2e": "playwright test",
     "dev": "node esbuild.mts --watch",
     "lint": "oxlint",
     "format": "oxfmt",
@@ -38,6 +39,7 @@
     "@devcontainers/cli": "^0.87.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@s-h-a-d-o-w/oxlint-config": "^1.1.2",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.125.0",
