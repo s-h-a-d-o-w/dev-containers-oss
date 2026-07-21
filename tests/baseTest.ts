@@ -46,7 +46,7 @@ export const test = base.extend<TestFixtures>({
         "--skip-welcome",
         "--skip-release-notes",
         "--disable-workspace-trust",
-        `--extensionDevelopmentPath=${path.join(__dirname, "..", "..")}`,
+        `--extensionDevelopmentPath=${path.join(__dirname, "..")}`,
         `--extensions-dir=${path.join(defaultCachePath, "extensions")}`,
         `--user-data-dir=${path.join(defaultCachePath, "user-data")}`,
         path.join(__dirname, "fixture"),
