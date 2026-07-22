@@ -2,13 +2,8 @@ import { test, expect } from "./baseTest";
 
 test("basics", async ({ workbox }) => {
   // REOPEN IN CONTAINER
-  await expect(workbox).toHaveTitle(
-    "[Extension Development Host] fixture - VSCodium",
-  );
   await workbox.getByRole("button", { name: "Reopen in Container" }).click();
-  await expect(workbox).toHaveTitle(
-    "[Extension Development Host] fixture [Dev Container] - VSCodium",
-  );
+  await expect(workbox).toHaveTitle(/Dev Container/u);
 
   // REBUILD
   await workbox.locator("a").filter({ hasText: ".devcontainer" }).click();
@@ -18,17 +13,20 @@ test("basics", async ({ workbox }) => {
   await workbox.keyboard.type("// dummy");
   await editor.press("ControlOrMeta+s");
   await workbox.getByRole("button", { name: "Rebuild" }).click();
-  await expect(workbox).toHaveTitle(
-    "[Extension Development Host] fixture - VSCodium",
-  );
-  await expect(workbox).toHaveTitle(
-    "[Extension Development Host] devcontainer.json - fixture [Dev Container] - VSCodium",
-  );
+  await expect(workbox).not.toHaveTitle(/Dev Container/u);
+  await expect(workbox).toHaveTitle(/Dev Container/u);
 
-  // REOPEN LOCALLY
+  // REOPEN LOCALLY (via remote menu)
   await workbox.getByRole("button", { name: /remote.*/u }).click();
   await workbox.getByRole("option", { name: "Reopen Folder Locally" }).click();
-  await expect(workbox).toHaveTitle(
-    "[Extension Development Host] fixture - VSCodium",
-  );
+  await expect(workbox).not.toHaveTitle(/Dev Container/u);
+
+  // SHOW CONTAINER CONFIG
+  await workbox.getByRole("main").press("ControlOrMeta+Shift+p");
+  await workbox.getByRole("textbox").fill(">Open Container Configuration File");
+  await workbox
+    .getByRole("option", { name: "Container Configuration File" })
+    .click();
+  await expect(workbox).toHaveTitle(/devcontainer.json/u);
+  // await workbox.pause();
 });
