@@ -22,7 +22,7 @@ test("basics", async ({ workbox }) => {
     "[Extension Development Host] fixture - VSCodium",
   );
   await expect(workbox).toHaveTitle(
-    "[Extension Development Host] fixture [Dev Container] - VSCodium",
+    "[Extension Development Host] devcontainer.json - fixture [Dev Container] - VSCodium",
   );
 
   // REOPEN LOCALLY
