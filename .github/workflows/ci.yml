@@ -8,8 +8,12 @@ on:
 
 jobs:
   test-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     name: Run e2e tests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     env:
       DEBUG: pw:browser
     steps:
@@ -23,6 +27,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: pnpm build
       - run: xvfb-run pnpm e2e
+        if: matrix.os == 'ubuntu-latest'
+      - run: pnpm e2e
+        if: matrix.os != 'ubuntu-latest'
       - uses: actions/upload-artifact@v7
         if: always()
         with:
