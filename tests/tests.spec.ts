@@ -23,7 +23,9 @@ test("basics", async ({ workbox }) => {
 
   // SHOW CONTAINER CONFIG
   await workbox.getByRole("main").press("ControlOrMeta+Shift+p");
-  await workbox.getByRole("textbox").fill(">Open Container Configuration File");
+  await workbox
+    .getByRole("textbox", { name: "Type the name of a command to run." })
+    .fill(">Open Container Configuration File");
   await workbox
     .getByRole("option", { name: "Container Configuration File" })
     .click();
