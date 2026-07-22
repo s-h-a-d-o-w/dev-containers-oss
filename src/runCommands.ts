@@ -54,7 +54,8 @@ export function runCommandCapture(
     quiet,
     cwd,
     env,
-  }: { cwd?: string; env?: NodeJS.ProcessEnv; quiet?: boolean },
+    input,
+  }: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string; quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const out = getLog();
   const stream = shouldStream(quiet);
@@ -65,8 +66,12 @@ export function runCommandCapture(
     const child = spawn(command, args, {
       cwd,
       env,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
+    if (input) {
+      child.stdin.write(input);
+    }
+    child.stdin.end();
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d: Buffer) => {

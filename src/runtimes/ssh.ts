@@ -31,6 +31,7 @@ import {
   getUserHome,
 } from "../dockerOps";
 import { EXTENSION_ID } from "../constants";
+import { dockerCommandLinePrefix } from "../wsl";
 
 export const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
 
@@ -107,7 +108,7 @@ function getContainerIdFromSshConfig(hostAlias: string): string | undefined {
     return undefined;
   }
   const proxyMatch =
-    /ProxyCommand\s+docker\s+exec\s+.*?\s(?<containerId>\S+)\s+\/usr\/sbin\/sshd/u.exec(
+    /ProxyCommand\s+.*?docker\s+exec\s+.*?\s(?<containerId>\S+)\s+\/usr\/sbin\/sshd/u.exec(
       block,
     );
   return proxyMatch?.groups?.containerId;
@@ -195,11 +196,10 @@ async function ensureAuthorizedKeyInContainer(
   const keyData = fs.readFileSync(pubKeyPath, "utf8").trim() + "\n";
   const script = [
     "set -e",
-    'KEY="$(cat)"',
     `mkdir -p ${home}/.ssh`,
     `chmod 700 ${home}/.ssh`,
     `touch ${home}/.ssh/authorized_keys`,
-    `grep -qxF "$KEY" ${home}/.ssh/authorized_keys || printf '%s\\n' "$KEY" >> ${home}/.ssh/authorized_keys`,
+    `grep -qxF "$DATA" ${home}/.ssh/authorized_keys || printf '%s\\n' "$DATA" >> ${home}/.ssh/authorized_keys`,
     `chmod 600 ${home}/.ssh/authorized_keys`,
     `chown -R ${user} ${home}/.ssh`,
   ].join("\n");
@@ -272,7 +272,10 @@ function ensureSshConfigHostAlias(
     `  StrictHostKeyChecking no`,
     `  UserKnownHostsFile /dev/null`,
     ...(forwardAgent ? ["  ForwardAgent yes"] : []),
-    `  ProxyCommand docker exec -i -u 0 ${containerId} /usr/sbin/sshd -i -o PubkeyAuthentication=yes`,
+    // When docker runs inside WSL the ProxyCommand must reach it through wsl.exe; otherwise
+    // it invokes docker on the host directly. dockerCommandLinePrefix() resolves to whichever
+    // applies for the container this alias points at.
+    `  ProxyCommand ${dockerCommandLinePrefix()} exec -i -u 0 ${containerId} /usr/sbin/sshd -i -o PubkeyAuthentication=yes`,
     "",
   ].join("\n");
 

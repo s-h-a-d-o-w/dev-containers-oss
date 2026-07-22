@@ -1,7 +1,10 @@
 import { env, type ExtensionContext, Uri, window } from "vscode";
+import fs from "node:fs";
 import path from "node:path";
 import { runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";
+import { EXTENSION_ID } from "./constants.ts";
+import { parseWslPath, setWslDistroFromPath } from "./wsl.ts";
 
 export type DevcontainerUpResult = {
   containerId: string;
@@ -20,11 +23,73 @@ function getEnvWithElectronAsNode(): NodeJS.ProcessEnv {
   return { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
 }
 
+// The version installed inside WSL comes from the @devcontainers/cli dependency range in our
+// package.json, stripped of any semver range prefix (^, ~, >=, ...).
+function getDevcontainerCliVersion(ctx: ExtensionContext): string {
+  const pkgPath = Uri.joinPath(ctx.extensionUri, "package.json").fsPath;
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+    dependencies?: Record<string, string>;
+  };
+  const range = pkg.dependencies?.["@devcontainers/cli"] ?? "";
+  return range.replace(/^[^\d]*/u, "");
+}
+
+// Build a `wsl.exe` invocation that ensures the devcontainer CLI is installed in the distro
+// (via the upstream install script, pinned to our bundled version) and then runs it. The
+// install is skipped when the pinned version is already present, so repeated calls only pay
+// the download cost once.
+function buildWslCliInvocation(
+  ctx: ExtensionContext,
+  distro: string,
+  cliArgs: string[],
+): { command: string; args: string[]; input: string } {
+  const version = getDevcontainerCliVersion(ctx);
+  const installUrl =
+    "https://raw.githubusercontent.com/devcontainers/cli/main/scripts/install.sh";
+  const installScript = `/tmp/${EXTENSION_ID}-install.sh`;
+  const script = [
+    "set -e",
+    'BIN="$HOME/.devcontainers/bin"',
+    `if ! "$BIN/devcontainer" --version 2>/dev/null | grep -qx "${version}"; then`,
+    `  curl -fsSL "${installUrl}" -o "${installScript}"`,
+    `  sh "${installScript}" --version ${version}`,
+    "fi",
+    // Invoke the wrapper by its absolute path rather than relying on PATH resolution: some
+    // distros/shells still report "devcontainer: not found" for the bare name right after the
+    // install adds $BIN to PATH.
+    'exec "$BIN/devcontainer" "$@"',
+  ].join("\n");
+  // Feed the script to `sh` over stdin (`-s`) instead of embedding it as a `wsl.exe`
+  // command-line argument. Passing a multi-line, quote-heavy script through the
+  // Node spawn -> Windows CreateProcess -> wsl.exe chain mangles the embedded quotes
+  // (so `$BIN` ends up wrong and every run reinstalls, then fails with "not found").
+  // The CLI args after `--` become the script's positional parameters ("$@").
+  return {
+    command: "wsl.exe",
+    args: ["-d", distro, "sh", "-s", "--", ...cliArgs],
+    input: script,
+  };
+}
+
 function runCliCapture(
   ctx: ExtensionContext,
   args: string[],
   { cwd, quiet = true }: { cwd?: string; quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
+  const wsl = cwd ? parseWslPath(cwd) : undefined;
+  if (wsl) {
+    // Normalize any WSL UNC path in the arguments (e.g. the --workspace-folder value) to a
+    // native Linux path the in-distro CLI understands.
+    const wslArgs = args.map((arg) => parseWslPath(arg)?.linuxPath ?? arg);
+    const {
+      command,
+      args: cmdArgs,
+      input,
+    } = buildWslCliInvocation(ctx, wsl.distro, wslArgs);
+    // wsl.exe is a Win32 process and cannot start in a UNC working directory, so we omit
+    // cwd; the CLI locates the project through the normalized --workspace-folder path.
+    return runCommandCapture(command, cmdArgs, { input, quiet });
+  }
   const cliPath = Uri.joinPath(
     ctx.extensionUri,
     "dist",
@@ -89,6 +154,10 @@ export async function devcontainerUp(
   wsFsPath: string,
   options?: { rebuild?: boolean },
 ): Promise<DevcontainerUpResult> {
+  // `devcontainer up` is the entry point of every flow (native resolver, native launch, and
+  // SSH). Recomputing the WSL context here means every docker command issued afterwards in
+  // this process routes to the distro that hosts the container (or to the host if none).
+  setWslDistroFromPath(wsFsPath);
   const args = ["up", "--workspace-folder", wsFsPath];
   if (options?.rebuild) {
     args.push("--remove-existing-container");

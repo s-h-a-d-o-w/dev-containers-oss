@@ -7,6 +7,7 @@ import { runCommand, runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";
 import { EXTENSION_ID } from "./constants.ts";
 import { getServerDataFolderName } from "./hostInfo.ts";
+import { dockerInvocation } from "./wsl.ts";
 
 // Build the argv for a `docker exec` invocation. Both runtimes talk to the container
 // this way; centralizing the argument order keeps the two transports consistent.
@@ -30,11 +31,10 @@ export function dockerExecCapture(
   argv: string[],
   options?: { quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
-  return runCommandCapture(
-    "docker",
+  const { command, args } = dockerInvocation(
     dockerExecArgs(containerId, { user }, argv),
-    { quiet: options?.quiet },
   );
+  return runCommandCapture(command, args, { quiet: options?.quiet });
 }
 
 export function spawnDockerExec(
@@ -42,31 +42,90 @@ export function spawnDockerExec(
   user: string,
   argv: string[],
 ) {
-  return spawn(
-    "docker",
+  const { command, args } = dockerInvocation(
     dockerExecArgs(containerId, { user, interactive: true }, argv),
-    { stdio: ["pipe", "pipe", "pipe"] },
   );
+  return spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
+}
+
+// When the docker invocation is routed through `wsl.exe` (docker lives inside WSL), any
+// script passed on the command line as `sh -c "<script>"` has its embedded quotes mangled
+// by the Node spawn -> Windows CreateProcess -> wsl.exe chain (the same failure that forced
+// the CLI invocation onto stdin). So we deliver the script over stdin to a bare `sh` (which
+// reads and executes its commands from stdin) instead, keeping it off the wsl.exe command
+// line entirely. Data the script needs (git config, known_hosts, settings) can no longer
+// arrive on the now-occupied stdin, so it is base64-embedded and exposed as $DATA.
+function withEmbeddedData(script: string, data?: string): string {
+  if (data === undefined) {
+    return script;
+  }
+  const b64 = Buffer.from(data, "utf8").toString("base64");
+  // base64 uses no shell metacharacters or whitespace, so $DATA is recovered verbatim
+  // regardless of the payload. Command substitution strips trailing newlines exactly like
+  // the previous `DATA="$(cat)"` did.
+  return `DATA=$(printf %s ${b64} | base64 -d)\n${script}`;
+}
+
+// Streaming variant (mirrors runCommand): output goes to the log terminal.
+export function dockerExecShell(
+  containerId: string,
+  { data, user }: { data?: string; user?: string },
+  script: string,
+) {
+  const { command, args } = dockerInvocation(
+    dockerExecArgs(containerId, { user, interactive: true }, ["sh"]),
+  );
+  return runCommand(command, args, { input: withEmbeddedData(script, data) });
+}
+
+// Capturing variant. `params` become the script's positional parameters ("$@"), passed via
+// `sh -s -- ...` — those are simple tokens (no quotes/spaces), so they survive the wsl.exe
+// command line unharmed.
+export function dockerExecShellCapture(
+  containerId: string,
+  {
+    data,
+    params,
+    quiet,
+    user,
+  }: { data?: string; params?: string[]; quiet?: boolean; user?: string },
+  script: string,
+) {
+  const argv = params ? ["sh", "-s", "--", ...params] : ["sh"];
+  const { command, args } = dockerInvocation(
+    dockerExecArgs(containerId, { user, interactive: true }, argv),
+  );
+  return runCommandCapture(command, args, {
+    input: withEmbeddedData(script, data),
+    quiet,
+  });
 }
 
 export async function dockerInspectLabel(
   containerId: string,
   label: string,
 ): Promise<string | undefined> {
-  const result = await runCommandCapture(
-    "docker",
-    [
-      "inspect",
-      "--format",
-      `{{ index .Config.Labels "${label}" }}`,
-      containerId,
-    ],
-    { quiet: true },
-  );
+  // A `--format '{{ index .Config.Labels "…" }}'` template carries spaces and double
+  // quotes on the command line, which wsl.exe mangles when docker lives inside WSL (the
+  // same hazard that forced the shell scripts onto stdin). So we fetch the full inspect
+  // JSON — a bare argv with no quotes/spaces — and pick the label out in JS instead.
+  const { command, args } = dockerInvocation(["inspect", containerId]);
+  const result = await runCommandCapture(command, args, { quiet: true });
   if (result.code !== 0) {
     return undefined;
   }
-  return result.stdout.trim() || undefined;
+  try {
+    const parsed = JSON.parse(result.stdout) as {
+      Config?: { Labels?: Record<string, string> };
+    }[];
+    const value = parsed[0]?.Config?.Labels?.[label]?.trim();
+    if (!value) {
+      return undefined;
+    }
+    return value;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function execInContainerAsRoot(
@@ -74,22 +133,14 @@ export async function execInContainerAsRoot(
   script: string,
   input?: string,
 ): Promise<void> {
-  await runCommand(
-    "docker",
-    dockerExecArgs(containerId, { user: "0", interactive: true }, [
-      "sh",
-      "-c",
-      script,
-    ]),
-    { input },
-  );
+  await dockerExecShell(containerId, { data: input, user: "0" }, script);
 }
 
 async function getContainerUsername(containerId: string): Promise<string> {
-  const result = await runCommandCapture(
-    "docker",
-    ["exec", containerId, "sh", "-c", "whoami 2>/dev/null || id -un"],
+  const result = await dockerExecShellCapture(
+    containerId,
     { quiet: true },
+    "whoami 2>/dev/null || id -un",
   );
   const user = result.stdout.trim();
   if (user) {
@@ -115,18 +166,10 @@ export async function getUserHome(
   containerId: string,
   user: string,
 ): Promise<string> {
-  const res = await runCommandCapture(
-    "docker",
-    [
-      "exec",
-      "-u",
-      "0",
-      containerId,
-      "sh",
-      "-c",
-      `(getent passwd ${user} 2>/dev/null || grep "^${user}:" /etc/passwd) | head -n1 | cut -d: -f6`,
-    ],
-    { quiet: true },
+  const res = await dockerExecShellCapture(
+    containerId,
+    { quiet: true, user: "0" },
+    `(getent passwd ${user} 2>/dev/null || grep "^${user}:" /etc/passwd) | head -n1 | cut -d: -f6`,
   );
   const home = res.stdout.trim();
   if (home) {
@@ -153,7 +196,6 @@ export async function ensureKnownHostsInContainer(
   const home = await getUserHome(containerId, user);
   const script = [
     "set -e",
-    'DATA="$(cat)"',
     `mkdir -p ${home}/.ssh`,
     `chmod 700 ${home}/.ssh`,
     `touch ${home}/.ssh/known_hosts`,
@@ -183,7 +225,6 @@ export async function ensureGitConfigInContainer(
   const home = await getUserHome(containerId, user);
   const script = [
     "set -e",
-    'DATA="$(cat)"',
     `printf '%s' "$DATA" > ${home}/.gitconfig`,
     `chmod 644 ${home}/.gitconfig`,
     `chown ${user} ${home}/.gitconfig`,
@@ -223,18 +264,10 @@ export async function applyRemoteMachineSettings(
   const settingsDir = `${home}/${serverFolder}/data/Machine`;
   const settingsPath = `${settingsDir}/settings.json`;
 
-  const existing = await runCommandCapture(
-    "docker",
-    [
-      "exec",
-      "-u",
-      "0",
-      containerId,
-      "sh",
-      "-c",
-      `cat ${settingsPath} 2>/dev/null || true`,
-    ],
-    { quiet: true },
+  const existing = await dockerExecShellCapture(
+    containerId,
+    { quiet: true, user: "0" },
+    `cat ${settingsPath} 2>/dev/null || true`,
   );
   const trimmed = existing.stdout.trim();
   let merged: Record<string, unknown> = {};
@@ -257,7 +290,7 @@ export async function applyRemoteMachineSettings(
     "set -e",
     `mkdir -p ${settingsDir}`,
     parseFailed ? `cp ${settingsPath} ${settingsPath}.bak` : ":",
-    `cat > ${settingsPath}`,
+    `printf '%s\\n' "$DATA" > ${settingsPath}`,
     `chown -R ${user} ${home}/${serverFolder}`,
     `chmod 600 ${settingsPath}`,
   ].join("\n");

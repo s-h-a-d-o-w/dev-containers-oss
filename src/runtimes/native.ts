@@ -36,6 +36,7 @@ import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,
   dockerExecCapture,
+  dockerExecShellCapture,
   getEffectiveUser,
   getUserHome,
   spawnDockerExec,
@@ -188,7 +189,7 @@ async function ensureServerInstalled(
     'rm -f "$TMP"',
     `test -x "${serverBin}"`,
   ].join("\n");
-  const res = await dockerExecCapture(containerId, user, ["sh", "-c", script]);
+  const res = await dockerExecShellCapture(containerId, { user }, script);
   if (res.code !== 0) {
     throw new Error(
       `Failed to install server in container: ${res.stderr.trim() || `exit code ${res.code}`}`,
@@ -233,7 +234,7 @@ async function ensureServerRunning(
     'if [ -z "$P" ]; then echo "server did not report a listening port" >&2; tail -n 60 "$LOG" >&2; exit 1; fi',
     'echo "PORT=$P"',
   ].join("\n");
-  const res = await dockerExecCapture(containerId, user, ["sh", "-c", script]);
+  const res = await dockerExecShellCapture(containerId, { user }, script);
   const match = /PORT=(?<port>\d+)/u.exec(res.stdout);
   if (res.code !== 0 || !match) {
     throw new Error(
@@ -254,14 +255,18 @@ async function installExtensionsInContainer(
     return;
   }
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
-  const args = ["sh", "-c", `"${serverBin}" "$@"`, "sh"];
+  const params: string[] = [];
   for (const id of extensions) {
-    args.push("--install-extension", id);
+    params.push("--install-extension", id);
   }
   getLog().appendLine(
     `Installing ${extensions.length} devcontainer extension(s) into the container server...`,
   );
-  const res = await dockerExecCapture(containerId, user, args);
+  const res = await dockerExecShellCapture(
+    containerId,
+    { params, user },
+    `"${serverBin}" "$@"`,
+  );
   if (res.code !== 0) {
     getLog().appendLine(
       `Extension install failed (exit code ${res.code}): ${res.stderr.trim() || res.stdout.trim() || "no output"}`,
@@ -450,11 +455,10 @@ async function isContainerProvisioned(
   user: string,
   home: string,
 ): Promise<boolean> {
-  const res = await dockerExecCapture(
+  const res = await dockerExecShellCapture(
     containerId,
-    user,
-    ["sh", "-c", `test -f "${home}/${PROVISIONED_MARKER}"`],
-    { quiet: true },
+    { quiet: true, user },
+    `test -f "${home}/${PROVISIONED_MARKER}"`,
   );
   return res.code === 0;
 }
@@ -464,11 +468,10 @@ async function markContainerProvisioned(
   user: string,
   home: string,
 ): Promise<void> {
-  await dockerExecCapture(
+  await dockerExecShellCapture(
     containerId,
-    user,
-    ["sh", "-c", `touch "${home}/${PROVISIONED_MARKER}"`],
-    { quiet: true },
+    { quiet: true, user },
+    `touch "${home}/${PROVISIONED_MARKER}"`,
   );
 }
 
