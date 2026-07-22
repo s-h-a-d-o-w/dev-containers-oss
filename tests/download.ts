@@ -117,9 +117,9 @@ export async function downloadAndUnzipCodium(): Promise<string> {
     asset.name.replace(/\.(?:tar\.gz|zip)$/u, ""),
   );
   const executablePath = isWindows
-    ? path.join(extractDir, "Codium.exe")
+    ? path.join(extractDir, "VSCodium.exe")
     : isDarwin
-      ? path.join(extractDir, "VSCodium.app/Contents/MacOS/Electron")
+      ? path.join(extractDir, "VSCodium.app/Contents/MacOS/VSCodium")
       : path.join(extractDir, "codium");
 
   if (await pathExists(executablePath)) {
