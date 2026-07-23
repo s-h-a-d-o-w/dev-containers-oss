@@ -1,6 +1,9 @@
 import { test, expect } from "./baseTest";
 
 test("basics", async ({ workbox }) => {
+  // Get rid of git popup
+  await workbox.getByRole("button", { name: "Never" }).click();
+
   // REOPEN IN CONTAINER
   await workbox.getByRole("button", { name: "Reopen in Container" }).click();
   await expect(workbox).toHaveTitle(/Dev Container/u);
