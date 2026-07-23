@@ -7,7 +7,7 @@ export function getWorkspaceFolder(): WorkspaceFolder | undefined {
 }
 
 export function getHomeDir(): string {
-  return process.env.HOME ?? process.env.USERPROFILE ?? "";
+  return process.env["HOME"] ?? process.env["USERPROFILE"] ?? "";
 }
 
 export function getDevcontainerPath(wsFsPath: string): string {

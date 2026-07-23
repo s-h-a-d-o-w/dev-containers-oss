@@ -14,10 +14,12 @@ const fs = require("node:fs");
 
 const [, SOCK] = process.argv;
 
-try {
-  fs.unlinkSync(SOCK);
-} catch {
-  // Nothing to clean up if the socket does not already exist.
+if (SOCK) {
+  try {
+    fs.unlinkSync(SOCK);
+  } catch {
+    // Nothing to clean up if the socket does not already exist.
+  }
 }
 
 /** @type {Record<number, net.Socket>} */
@@ -96,7 +98,9 @@ srv.on("error", (e) => {
 
 srv.listen(SOCK, () => {
   try {
-    fs.chmodSync(SOCK, 0o600);
+    if (SOCK) {
+      fs.chmodSync(SOCK, 0o600);
+    }
   } catch {
     // chmod is best-effort; the socket still works without it.
   }

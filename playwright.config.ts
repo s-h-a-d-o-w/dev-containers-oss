@@ -16,7 +16,7 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  reporter: process.env.CI ? "html" : "list",
+  reporter: process.env["CI"] ? "html" : "list",
   timeout: 180_000,
   expect: {
     timeout: 60_000,

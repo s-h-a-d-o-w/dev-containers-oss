@@ -129,7 +129,7 @@ function findResultObject(output: string, key: string) {
     .filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
-    if (!line.startsWith("{")) {
+    if (!line?.startsWith("{")) {
       continue;
     }
     try {
@@ -170,21 +170,21 @@ export async function devcontainerUp(
     quiet: false,
   });
   const result = parseUpResult(stdout) ?? parseUpResult(stderr);
-  if (code !== 0 || result?.outcome !== "success") {
-    const detail = (result?.message ??
-      result?.description ??
+  if (code !== 0 || result?.["outcome"] !== "success") {
+    const detail = (result?.["message"] ??
+      result?.["description"] ??
       `exit code ${code}`) as string;
     throw new Error(`devcontainer up failed: ${detail}`);
   }
-  if (!result.containerId) {
+  if (!result["containerId"]) {
     throw new Error(
       "devcontainer up succeeded but did not return a containerId",
     );
   }
   return {
-    containerId: result.containerId as string,
-    remoteUser: (result.remoteUser ?? "") as string,
-    remoteWorkspaceFolder: (result.remoteWorkspaceFolder ?? "") as string,
+    containerId: result["containerId"] as string,
+    remoteUser: (result["remoteUser"] ?? "") as string,
+    remoteWorkspaceFolder: (result["remoteWorkspaceFolder"] ?? "") as string,
   };
 }
 
@@ -221,8 +221,9 @@ export async function readMergedCustomizations(
     findResultObject(res.stdout, "mergedConfiguration") ??
     findResultObject(res.stderr, "mergedConfiguration");
   // oxlint-disable-next-line typescript/no-unsafe-member-access
-  const vscodeEntries = result?.mergedConfiguration?.customizations
-    ?.vscode as unknown;
+  const vscodeEntries = result?.["mergedConfiguration"]?.["customizations"]?.[
+    "vscode"
+  ] as unknown;
   if (!Array.isArray(vscodeEntries)) {
     return empty;
   }
@@ -232,15 +233,15 @@ export async function readMergedCustomizations(
     if (!isEntryObject(entry)) {
       continue;
     }
-    if (Array.isArray(entry.extensions)) {
-      for (const ext of entry.extensions) {
+    if (Array.isArray(entry["extensions"])) {
+      for (const ext of entry["extensions"]) {
         if (typeof ext === "string") {
           extensions.push(ext);
         }
       }
     }
-    if (entry.settings && typeof entry.settings === "object") {
-      Object.assign(settings, entry.settings);
+    if (entry["settings"] && typeof entry["settings"] === "object") {
+      Object.assign(settings, entry["settings"]);
     }
   }
   return { extensions: [...new Set(extensions)], settings };

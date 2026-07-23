@@ -17,8 +17,7 @@ import { test as base, type Page, _electron } from "@playwright/test";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
-import { spawnSync } from "node:child_process";
-import { downloadAndUnzipCodium } from "./download.ts";
+import { downloadAndUnzipCodium } from "./downloadAndUnzipCodium.ts";
 
 export { expect } from "@playwright/test";
 

@@ -111,7 +111,7 @@ function getContainerIdFromSshConfig(hostAlias: string): string | undefined {
     /ProxyCommand\s+.*?docker\s+exec\s+.*?\s(?<containerId>\S+)\s+\/usr\/sbin\/sshd/u.exec(
       block,
     );
-  return proxyMatch?.groups?.containerId;
+  return proxyMatch?.groups?.["containerId"];
 }
 
 // When rebuild/reopen is triggered from a window already connected to the container,
@@ -152,7 +152,7 @@ async function resolvePublicKeyPath(): Promise<string | undefined> {
       );
       return undefined;
     }
-    pubKeyPath = picked[0].fsPath;
+    pubKeyPath = picked[0]?.fsPath;
   }
   return pubKeyPath;
 }

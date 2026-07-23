@@ -10,7 +10,6 @@ const execFileAsync = promisify(execFile);
 
 const isWindows = process.platform === "win32";
 const isDarwin = process.platform === "darwin";
-const isLinux = process.platform === "linux";
 const GITHUB_API_LATEST_RELEASE =
   "https://api.github.com/repos/VSCodium/VSCodium/releases/latest";
 
@@ -41,11 +40,23 @@ function getPlatformIdentifier(): string {
   return `${process.platform}-${process.arch}`;
 }
 
+function getHeadersWithAuthorization(
+  headers?: Record<string, string>,
+): Record<string, string> {
+  const token = process.env["GITHUB_TOKEN"];
+  return {
+    ...headers,
+    ...(token ? { Authorization: `token ${token}` } : {}),
+  };
+}
+
 async function fetchLatestRelease(): Promise<GitHubRelease> {
+  const headers = getHeadersWithAuthorization({
+    Accept: "application/vnd.github+json",
+  });
+
   const response = await fetch(GITHUB_API_LATEST_RELEASE, {
-    headers: {
-      Accept: "application/vnd.github+json",
-    },
+    headers,
   });
   if (!response.ok) {
     throw new Error(

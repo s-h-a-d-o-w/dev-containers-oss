@@ -241,7 +241,7 @@ async function ensureServerRunning(
       `Failed to start server in container: ${res.stderr.trim() || `exit code ${res.code}`}`,
     );
   }
-  return Number(match.groups?.port);
+  return Number(match.groups?.["port"]);
 }
 
 async function installExtensionsInContainer(
@@ -353,7 +353,7 @@ function startSshAgentBridge(
   home: string,
   product: ProductInfo,
 ): string | undefined {
-  const authSock = process.env.SSH_AUTH_SOCK;
+  const authSock = process.env["SSH_AUTH_SOCK"];
   if (!authSock) {
     return undefined;
   }

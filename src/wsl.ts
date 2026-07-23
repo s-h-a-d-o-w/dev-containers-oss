@@ -10,11 +10,11 @@ export type WslLocation = { distro: string; linuxPath: string };
 
 export function parseWslPath(fsPath: string): WslLocation | undefined {
   const match = WSL_UNC_RE.exec(fsPath);
-  if (!match?.groups) {
+  if (!match?.groups || !match.groups["distro"] || !match.groups["rest"]) {
     return undefined;
   }
-  const rest = match.groups.rest.replaceAll("\\", "/");
-  return { distro: match.groups.distro, linuxPath: `/${rest}` };
+  const rest = match.groups["rest"].replaceAll("\\", "/");
+  return { distro: match.groups["distro"], linuxPath: `/${rest}` };
 }
 
 // The distro whose docker daemon serves the current window, or undefined when docker runs
