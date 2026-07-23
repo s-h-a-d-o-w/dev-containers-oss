@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
+import ky, { type Options as KyOptions } from "ky";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,30 +41,37 @@ function getPlatformIdentifier(): string {
   return `${process.platform}-${process.arch}`;
 }
 
-function getHeadersWithAuthorization(
-  headers?: Record<string, string>,
-): Record<string, string> {
+function getKyOptions(headers?: Record<string, string>): KyOptions {
   const token = process.env["GITHUB_TOKEN"];
   return {
-    ...headers,
-    ...(token ? { Authorization: `token ${token}` } : {}),
+    headers: {
+      ...headers,
+      ...(token ? { Authorization: `token ${token}` } : {}),
+    },
+    retry: {
+      limit: 30,
+      jitter: true,
+      statusCodes: [403], // Rate limit exceeded
+      afterStatusCodes: [403],
+    },
   };
 }
 
-async function fetchLatestRelease(): Promise<GitHubRelease> {
-  const headers = getHeadersWithAuthorization({
+async function fetchLatestRelease() {
+  const options = getKyOptions({
     Accept: "application/vnd.github+json",
   });
 
-  const response = await fetch(GITHUB_API_LATEST_RELEASE, {
-    headers,
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch latest VSCodium release: ${response.status} ${response.statusText}`,
-    );
+  try {
+    const response = (await ky
+      .get(GITHUB_API_LATEST_RELEASE, options)
+      .json()) as GitHubRelease;
+    return response;
+  } catch (error) {
+    throw new Error(`Failed to fetch latest VSCodium release: ${error}`, {
+      cause: error,
+    });
   }
-  return (await response.json()) as GitHubRelease;
 }
 
 function selectAsset(
@@ -86,13 +94,15 @@ function selectAsset(
 }
 
 async function downloadFile(url: string, destination: string): Promise<void> {
-  const response = await fetch(url);
-  if (!response.ok || !response.body) {
-    throw new Error(
-      `Failed to download ${url}: ${response.status} ${response.statusText}`,
-    );
+  try {
+    const response = await ky.get(url);
+    if (!response.body) {
+      throw new Error(`Failed to download ${url}: no body`);
+    }
+    await pipeline(response.body, createWriteStream(destination));
+  } catch (error) {
+    throw new Error(`Failed to download ${url}: ${error}`, { cause: error });
   }
-  await pipeline(response.body, createWriteStream(destination));
 }
 
 async function extractArchive(

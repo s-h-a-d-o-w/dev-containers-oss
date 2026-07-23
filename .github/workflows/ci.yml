@@ -18,20 +18,51 @@ jobs:
       DEBUG: pw:browser
     steps:
       - uses: actions/checkout@v7
-      - uses: docker/setup-docker-action@v5
+      - uses: douglascamata/setup-docker-macos-action@v1.1.0
         if: matrix.os == 'macos-26-intel'
+      - uses: Vampire/setup-wsl@v7
+        if: matrix.os == 'windows-latest'
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: docker.io curl ca-certificates
+      - name: Start Docker and stage fixture inside WSL
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Keep the distro (and thus dockerd) alive for the whole job: WSL2 shuts a
+          # distro down ~8s after its last process exits, which would kill dockerd
+          # between steps since there's no systemd to restart it.
+          Start-Process -NoNewWindow wsl.exe -ArgumentList '-d','Ubuntu-24.04','-u','root','sleep','infinity'
+          wsl.exe -d Ubuntu-24.04 -u root service docker start
+          wsl.exe -d Ubuntu-24.04 -u root docker info
+          # Copy the in-repo fixture into the distro's native filesystem so the test can
+          # open it via \\wsl.localhost\... and exercise the wsl.exe docker routing.
+          $winFixture = "$env:GITHUB_WORKSPACE\tests\fixture" -replace '\\','/'
+          $fixture = (wsl.exe -d Ubuntu-24.04 wslpath "$winFixture").Trim()
+          wsl.exe -d Ubuntu-24.04 -u root cp -r $fixture /root/e2e-fixture
+          # The dev container runs as the non-root `node` user (uid 1000), but the copy
+          # above staged the fixture as root (uid 0). Without this the in-container save
+          # of devcontainer.json fails with EACCES. Match the container user's uid/gid.
+          wsl.exe -d Ubuntu-24.04 -u root chown -R 1000:1000 /root/e2e-fixture
+          $wslUncPath = (wsl.exe -d Ubuntu-24.04 wslpath -w /root/e2e-fixture).Trim()
+          Write-Host "WSL fixture UNC path: $wslUncPath"
+          wsl.exe -d Ubuntu-24.04 -u root docker pull mcr.microsoft.com/devcontainers/javascript-node:24
+      - name: Cache dev container base image
+        if: matrix.os != 'windows-latest'
+        run: docker pull mcr.microsoft.com/devcontainers/javascript-node:24
       - name: Use Node.js
         uses: actions/setup-node@v7
         with:
           node-version: lts/*
       - uses: pnpm/action-setup@v6
       - run: pnpm i
-      - run: npx playwright install --with-deps chromium
       - run: pnpm build
       - run: xvfb-run pnpm e2e
         if: matrix.os == 'ubuntu-latest'
       - run: pnpm e2e
-        if: matrix.os != 'ubuntu-latest'
+        if: matrix.os == 'macos-26-intel'
+      - run: pnpm e2e
+        if: matrix.os == 'windows-latest'
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

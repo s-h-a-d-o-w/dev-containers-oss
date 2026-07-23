@@ -17,9 +17,9 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   reporter: process.env["CI"] ? "html" : "list",
-  timeout: 180_000,
+  timeout: 480_000,
   expect: {
-    timeout: 60_000,
+    timeout: 180_000,
   },
   workers: 1,
   testDir: "tests",

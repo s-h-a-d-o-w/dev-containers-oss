@@ -22,9 +22,22 @@ import { downloadAndUnzipCodium } from "./downloadAndUnzipCodium.ts";
 export { expect } from "@playwright/test";
 
 type TestFixtures = {
-  workbox: Page;
   createTempDir: () => Promise<string>;
+  workbox: Page;
 };
+
+// Minimal shape of the Electron main-process module used inside
+// electronApp.evaluate, since the `electron` types aren't installed.
+type ElectronMainModule = {
+  BrowserWindow: {
+    getAllWindows: () => {
+      setBounds: (bounds: { height: number; width: number }) => void;
+    }[];
+  };
+};
+
+const isMac = process.platform === "darwin";
+const isWindows = process.platform === "win32";
 
 export const test = base.extend<TestFixtures>({
   workbox: async ({ createTempDir }, use) => {
@@ -45,14 +58,33 @@ export const test = base.extend<TestFixtures>({
         "--skip-welcome",
         "--skip-release-notes",
         "--disable-workspace-trust",
+        isMac ? "--window-size=1280,720" : "",
         `--extensionDevelopmentPath=${path.join(__dirname, "..")}`,
         `--extensions-dir=${path.join(defaultCachePath, "extensions")}`,
         `--user-data-dir=${path.join(defaultCachePath, "user-data")}`,
-        path.join(__dirname, "fixture"),
+        // On Windows CI the fixture is staged inside a WSL distro and opened via its
+        // \\wsl.localhost UNC path, so docker/CLI calls route through wsl.exe (the real
+        // Windows-user code path). On macOS CI it's staged in a Lima-writable location
+        // (E2E_FIXTURE_PATH) since the VM mounts the in-repo fixture read-only.
+        // Everywhere else it's the in-repo fixture folder.
+        isWindows
+          ? String.raw`\\wsl.localhost\Ubuntu-24.04\root\e2e-fixture`
+          : path.join(__dirname, "fixture"),
       ],
     });
 
     const workbox = await electronApp.firstWindow();
+    if (isMac) {
+      // Playwright's setViewportSize is a no-op for Electron (the page is bound to
+      // the real OS window), so resize the BrowserWindow from the main process.
+      await electronApp.evaluate(
+        ({ BrowserWindow }: ElectronMainModule, { width, height }) => {
+          const [win] = BrowserWindow.getAllWindows();
+          win?.setBounds({ width, height });
+        },
+        { width: 1280, height: 720 },
+      );
+    }
     await workbox.context().tracing.start({
       screenshots: true,
       snapshots: true,
