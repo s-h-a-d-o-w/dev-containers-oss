@@ -28,7 +28,6 @@ import {
 } from "./runtimes/native.ts";
 import { EXTENSION_ID } from "./constants.ts";
 
-const CONTAINER_AUTHORITY_PREFIX = `${AUTHORITY_PREFIX}+`;
 const PENDING_REOPEN_KEY = `${EXTENSION_ID}.pendingReopen`;
 const DONT_PROMPT_REOPEN_KEY = `${EXTENSION_ID}.dontPromptReopen`;
 
@@ -38,16 +37,21 @@ type PendingReopen = {
   native?: boolean;
 };
 
-// E.g. vscodium now has native support but that might not be the case for every flavor of VS Code.
-function isNativeRuntimeAvailable(): boolean {
-  return (
-    typeof workspace.registerRemoteAuthorityResolver === "function" &&
-    typeof ManagedResolvedAuthority === "function"
-  );
-}
-
 function getConfigUri(ws: WorkspaceFolder) {
   return Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
+}
+
+// The host-side folder of the native (managed) container this window is connected to, if
+// any. The local path is encoded straight into the authority, so no lookup is needed.
+function getConnectedContainerLocalFolder(): string | undefined {
+  if (!env.remoteName) {
+    return undefined;
+  }
+  const authority = getWorkspaceFolder()?.uri.authority ?? "";
+  if (!authority.startsWith(`${AUTHORITY_PREFIX}+`)) {
+    return undefined;
+  }
+  return decodeLocalFolder(authority);
 }
 
 function getWorkspaceOrThrow(): WorkspaceFolder {
@@ -56,6 +60,14 @@ function getWorkspaceOrThrow(): WorkspaceFolder {
     throw new Error("No folder open");
   }
   return workspaceFolder;
+}
+
+// E.g. vscodium now has native support but that might not be the case for every flavor of VS Code.
+function isNativeRuntimeAvailable(): boolean {
+  return (
+    typeof workspace.registerRemoteAuthorityResolver === "function" &&
+    typeof ManagedResolvedAuthority === "function"
+  );
 }
 
 function withUiErrorHandling(
@@ -110,19 +122,6 @@ export function activate(context: ExtensionContext) {
   }
   // Initialize context
   void updateDevcontainerContext();
-
-  // The host-side folder of the native (managed) container this window is connected to, if
-  // any. The local path is encoded straight into the authority, so no lookup is needed.
-  function getConnectedContainerLocalFolder(): string | undefined {
-    if (!env.remoteName) {
-      return undefined;
-    }
-    const authority = getWorkspaceFolder()?.uri.authority ?? "";
-    if (!authority.startsWith(CONTAINER_AUTHORITY_PREFIX)) {
-      return undefined;
-    }
-    return decodeLocalFolder(authority);
-  }
 
   async function promptRebuildOnConfigChange(changedFile: string) {
     if (!getConnectedHostAlias() && !getConnectedContainerLocalFolder()) {

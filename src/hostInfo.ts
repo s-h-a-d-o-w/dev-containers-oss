@@ -1,7 +1,7 @@
 import { env } from "vscode";
 import fs from "node:fs";
 import path from "node:path";
-import type { ProductInfo } from "./types.ts";
+import type { ProductInfo } from "./types/types.ts";
 
 // Read and parse the running editor's product.json. Returns an empty object when the
 // file is missing or malformed; callers fall back to their own defaults.

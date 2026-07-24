@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { getHomeDir, getHostAlias, getWorkspaceFolder } from "../utilities";
 import { runCommandCapture } from "../runCommands";
-import type { DevcontainerCustomizations } from "../types.ts";
+import type { DevcontainerCustomizations } from "../types/types.ts";
 import { runEditorCliCapture } from "../devContainerCli";
 import {
   getBufferedLog,
@@ -29,7 +29,7 @@ import {
   getUserHome,
 } from "../dockerOps";
 import { EXTENSION_ID } from "../constants";
-import { dockerCommandLinePrefix } from "../wsl";
+import { buildDockerCommandLinePrefix } from "../wsl";
 
 const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
 
@@ -271,7 +271,7 @@ function ensureSshConfigHostAlias(
     // When docker runs inside WSL the ProxyCommand must reach it through wsl.exe; otherwise
     // it invokes docker on the host directly. dockerCommandLinePrefix() resolves to whichever
     // applies for the container this alias points at.
-    `  ProxyCommand ${dockerCommandLinePrefix()} exec -i -u 0 ${containerId} /usr/sbin/sshd -i -o PubkeyAuthentication=yes`,
+    `  ProxyCommand ${buildDockerCommandLinePrefix()} exec -i -u 0 ${containerId} /usr/sbin/sshd -i -o PubkeyAuthentication=yes`,
     "",
   ].join("\n");
 

@@ -18,8 +18,7 @@
     "typecheck": "tsc --noEmit",
     "build": "node esbuild.mts --production",
     "package": "pnpm build && vsce package --no-dependencies",
-    "prepare": "husky",
-    "knip": "knip"
+    "prepare": "husky"
   },
   "dependencies": {
     "@devcontainers/cli": "^0.87.0"

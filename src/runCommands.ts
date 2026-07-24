@@ -16,6 +16,7 @@ export function runCommand(
   if (stream) {
     logCommand(command, args);
   }
+
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
@@ -62,6 +63,7 @@ export function runCommandCapture(
   if (stream) {
     logCommand(command, args);
   }
+
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,

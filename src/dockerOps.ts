@@ -7,7 +7,7 @@ import { runCommand, runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";
 import { EXTENSION_ID } from "./constants.ts";
 import { getServerDataFolderName } from "./hostInfo.ts";
-import { dockerInvocation } from "./wsl.ts";
+import { buildDockerCommand } from "./wsl.ts";
 
 // Build the argv for a `docker exec` invocation. Both runtimes talk to the container
 // this way; centralizing the argument order keeps the two transports consistent.
@@ -31,7 +31,7 @@ export function dockerExecCapture(
   argv: string[],
   options?: { quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
-  const { command, args } = dockerInvocation(
+  const { command, args } = buildDockerCommand(
     dockerExecArgs(containerId, { user }, argv),
   );
   return runCommandCapture(command, args, { quiet: options?.quiet });
@@ -42,7 +42,7 @@ export function spawnDockerExec(
   user: string,
   argv: string[],
 ) {
-  const { command, args } = dockerInvocation(
+  const { command, args } = buildDockerCommand(
     dockerExecArgs(containerId, { user, interactive: true }, argv),
   );
   return spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
@@ -72,7 +72,7 @@ function dockerExecShell(
   { data, user }: { data?: string; user?: string },
   script: string,
 ) {
-  const { command, args } = dockerInvocation(
+  const { command, args } = buildDockerCommand(
     dockerExecArgs(containerId, { user, interactive: true }, ["sh"]),
   );
   return runCommand(command, args, { input: withEmbeddedData(script, data) });
@@ -92,7 +92,7 @@ export function dockerExecShellCapture(
   script: string,
 ) {
   const argv = params ? ["sh", "-s", "--", ...params] : ["sh"];
-  const { command, args } = dockerInvocation(
+  const { command, args } = buildDockerCommand(
     dockerExecArgs(containerId, { user, interactive: true }, argv),
   );
   return runCommandCapture(command, args, {
@@ -109,7 +109,7 @@ export async function dockerInspectLabel(
   // quotes on the command line, which wsl.exe mangles when docker lives inside WSL (the
   // same hazard that forced the shell scripts onto stdin). So we fetch the full inspect
   // JSON — a bare argv with no quotes/spaces — and pick the label out in JS instead.
-  const { command, args } = dockerInvocation(["inspect", containerId]);
+  const { command, args } = buildDockerCommand(["inspect", containerId]);
   const result = await runCommandCapture(command, args, { quiet: true });
   if (result.code !== 0) {
     return undefined;

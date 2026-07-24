@@ -10,8 +10,7 @@ let logSink: ((chunk: string) => void) | undefined;
 let logger: DevcontainerLog | undefined;
 let isDev = false;
 
-// Injected by esbuild via a banner (see esbuild.mts) so the running extension can report
-// which build it came from. Absent when running unbundled (e.g. tests), hence the guard.
+// Injected by esbuild via a banner.
 declare const __BUILD_INFO__:
   | { version: string; buildTimestamp: number }
   | undefined;
@@ -38,8 +37,6 @@ export function getLog(): DevcontainerLog {
   return logger;
 }
 
-// Write the current build's version and timestamp to the log. Called at the very start of
-// every build/connect flow so each setup log records exactly which build produced it.
 export function logBuildInfo(): void {
   const { version, buildTimestamp } = getBuildInfo();
   getLog().appendLine(
@@ -47,8 +44,6 @@ export function logBuildInfo(): void {
   );
 }
 
-// Enable extra, developer-facing log output (e.g. the raw commands being spawned). Set from
-// activate() based on the extension's ExtensionMode so it only shows while developing.
 export function setDevMode(value: boolean): void {
   isDev = value;
 }
@@ -69,9 +64,7 @@ export function setBufferedLog(text: string): void {
 }
 
 // Render setup output in a read-only terminal, mirroring the official Dev Containers
-// extension. A Pseudoterminal has no live shell for the user to type into; writes made
-// before the terminal is opened are buffered so nothing is lost. Once finish() is called,
-// any keypress closes the terminal.
+// extension.
 function createLogTerminal(name: string): {
   write: (text: string) => void;
   finish: () => void;
@@ -82,6 +75,7 @@ function createLogTerminal(name: string): {
   let opened = false;
   let finished = false;
   let pending = "";
+
   const emit = (text: string) => {
     const body = text.replaceAll(/\r?\n/gu, "\r\n");
     if (opened) {
@@ -90,6 +84,7 @@ function createLogTerminal(name: string): {
       pending += body;
     }
   };
+
   const pty: Pseudoterminal = {
     onDidWrite: writeEmitter.event,
     onDidClose: closeEmitter.event,
@@ -111,6 +106,7 @@ function createLogTerminal(name: string): {
   };
   const terminal = window.createTerminal({ name, pty });
   terminal.show();
+
   return {
     write: emit,
     finish: () => {
@@ -122,9 +118,7 @@ function createLogTerminal(name: string): {
   };
 }
 
-// Run `fn` while streaming all log output into a fresh read-only terminal, then finish the
-// terminal. This is the only place setup output is shown, mirroring the official Dev
-// Containers extension: a terminal, only while building/configuring.
+// Run `fn` while streaming all log output into a new read-only terminal.
 export async function withLogTerminal<T>(
   name: string,
   fn: () => Promise<T>,
@@ -145,8 +139,7 @@ export async function withLogTerminal<T>(
 }
 
 // Quiet commands are housekeeping calls whose output is irrelevant to the user (e.g. reading
-// the container's home directory). They stay hidden from the build terminal in production but
-// are still shown while developing the extension, where seeing everything aids debugging.
+// the container's home directory).
 export function shouldStream(quiet?: boolean): boolean {
   return isDev || !quiet;
 }

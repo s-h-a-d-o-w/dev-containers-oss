@@ -17,7 +17,7 @@ import fs from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { DevcontainerUpResult, ProductInfo } from "../types.ts";
+import type { DevcontainerUpResult, ProductInfo } from "../types/types.ts";
 import {
   devcontainerUp,
   readMergedCustomizations,
