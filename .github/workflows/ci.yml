@@ -47,6 +47,7 @@ jobs:
         with:
           node-version: lts/*
       - uses: pnpm/action-setup@v6
+        cache: true
       - run: pnpm i
       - run: pnpm build
       - run: xvfb-run pnpm e2e
