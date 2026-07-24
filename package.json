@@ -1,7 +1,7 @@
 {
   "name": "dev-containers-oss",
   "displayName": "Dev Containers OSS",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Extension for building and running a dev container",
   "license": "MIT",
   "repository": {
