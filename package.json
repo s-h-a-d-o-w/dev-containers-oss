@@ -90,13 +90,24 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "dev-containers-oss.openDevcontainerConfig"
+          "command": "dev-containers-oss.openDevcontainerConfig",
+          "when": "dev-containers-oss.hasConfig"
         },
         {
-          "command": "dev-containers-oss.openFolderInDevcontainer"
+          "command": "dev-containers-oss.openFolderInDevcontainer",
+          "when": "!remoteName && dev-containers-oss.hasConfig"
         },
         {
-          "command": "dev-containers-oss.rebuildAndOpen"
+          "command": "dev-containers-oss.rebuildAndOpen",
+          "when": "dev-containers-oss.hasConfig"
+        },
+        {
+          "command": "dev-containers-oss.reopenFolderLocally",
+          "when": "remoteName"
+        },
+        {
+          "command": "dev-containers-oss.resetReopenPrompt",
+          "when": "dev-containers-oss.hasConfig"
         }
       ],
       "statusBar/remoteIndicator": [
@@ -119,6 +130,11 @@
           "command": "dev-containers-oss.reopenFolderLocally",
           "group": "remote_30_devcontainer_3local@4",
           "when": "remoteName"
+        },
+        {
+          "command": "dev-containers-oss.resetReopenPrompt",
+          "group": "remote_30_devcontainer_3local@5",
+          "when": "dev-containers-oss.hasConfig"
         }
       ]
     }
