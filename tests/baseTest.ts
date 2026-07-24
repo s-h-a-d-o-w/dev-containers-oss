@@ -50,13 +50,8 @@ export const test = base.extend<TestFixtures>({
         `--extensionDevelopmentPath=${path.join(__dirname, "..")}`,
         `--extensions-dir=${path.join(defaultCachePath, "extensions")}`,
         `--user-data-dir=${path.join(defaultCachePath, "user-data")}`,
-        // On Windows CI the fixture is staged inside a WSL distro and opened via its
-        // \\wsl.localhost UNC path, so docker/CLI calls route through wsl.exe (the real
-        // Windows-user code path). On macOS CI it's staged in a Lima-writable location
-        // (E2E_FIXTURE_PATH) since the VM mounts the in-repo fixture read-only.
-        // Everywhere else it's the in-repo fixture folder.
         isWindows
-          ? String.raw`\\wsl.localhost\Ubuntu-24.04\root\e2e-fixture`
+          ? process.env["WSL_FIXTURE_PATH"]!
           : path.join(__dirname, "fixture"),
       ],
     });

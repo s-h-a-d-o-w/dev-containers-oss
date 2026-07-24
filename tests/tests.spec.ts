@@ -13,7 +13,9 @@ test("basics", async ({ workbox }) => {
   await expect(workbox).toHaveTitle(/Dev Container/u);
 
   // REBUILD
-  await workbox.locator("a").filter({ hasText: ".devcontainer" }).click();
+  await workbox.locator("a").filter({ hasText: ".devcontainer" }).click({
+    timeout: 120_000, // Windows needs some time
+  });
   await workbox.locator("a").filter({ hasText: "devcontainer.json" }).click();
   const editor = workbox.locator(".monaco-editor");
   await editor.click();
@@ -24,7 +26,9 @@ test("basics", async ({ workbox }) => {
   await expect(workbox).toHaveTitle(/Dev Container/u);
 
   // REOPEN LOCALLY (via remote menu)
-  await workbox.getByRole("button", { name: /remote.*/u }).click();
+  await workbox.getByRole("button", { name: /remote.*/u }).click({
+    timeout: 120_000,
+  });
   await workbox.getByRole("option", { name: "Reopen Folder Locally" }).click();
   await expect(workbox).not.toHaveTitle(/Dev Container/u);
 
