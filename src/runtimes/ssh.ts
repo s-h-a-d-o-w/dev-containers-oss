@@ -12,10 +12,8 @@ import os from "node:os";
 import path from "node:path";
 import { getHomeDir, getHostAlias, getWorkspaceFolder } from "../utilities";
 import { runCommandCapture } from "../runCommands";
-import {
-  type DevcontainerCustomizations,
-  runEditorCliCapture,
-} from "../devContainerCli";
+import type { DevcontainerCustomizations } from "../types.ts";
+import { runEditorCliCapture } from "../devContainerCli";
 import {
   getBufferedLog,
   getLog,

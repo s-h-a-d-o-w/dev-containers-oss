@@ -5,17 +5,10 @@ import { runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";
 import { EXTENSION_ID } from "./constants.ts";
 import { parseWslPath, setWslDistroFromPath } from "./wsl.ts";
-
-export type DevcontainerUpResult = {
-  containerId: string;
-  remoteUser: string;
-  remoteWorkspaceFolder: string;
-};
-
-export type DevcontainerCustomizations = {
-  extensions: string[];
-  settings: Record<string, unknown>;
-};
+import type {
+  DevcontainerCustomizations,
+  DevcontainerUpResult,
+} from "./types.ts";
 
 // The extension host runs on the Electron/Node binary at process.execPath.
 // Setting ELECTRON_RUN_AS_NODE lets us execute the bundled devcontainer CLI as a plain Node script.
