@@ -33,13 +33,22 @@ test("basics", async ({ workbox }) => {
   await expect(workbox).not.toHaveTitle(/Dev Container/u);
 
   // SHOW CONTAINER CONFIG
-  await workbox.getByRole("main").press("ControlOrMeta+Shift+p");
-  await workbox
-    .getByRole("textbox", { name: "Type the name of a command to run." })
-    .fill(">Open Container Configuration File");
-  await workbox
-    .getByRole("option", { name: "Container Configuration File" })
-    .click();
-  await expect(workbox).toHaveTitle(/devcontainer.json/u);
+  // `hasConfig` takes a while to set
+  await expect(async () => {
+    await workbox.getByRole("main").press("ControlOrMeta+Shift+p");
+    await workbox
+      .getByRole("textbox", { name: "Type the name of a command to run." })
+      .fill(">Open Container Configuration File");
+    try {
+      await workbox
+        .getByRole("option", { name: "Container Configuration File" })
+        .click({ timeout: 1000 });
+      await expect(workbox).toHaveTitle(/devcontainer.json/u);
+    } catch (error) {
+      // Close the command palette before the next attempt
+      await workbox.keyboard.press("Escape");
+      throw error;
+    }
+  }).toPass({ timeout: 30_000 });
   // await workbox.pause();
 });
