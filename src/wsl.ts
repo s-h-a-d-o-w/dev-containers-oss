@@ -28,10 +28,6 @@ export function setWslDistroFromPath(fsPath: string): void {
   currentDistro = parseWslPath(fsPath)?.distro;
 }
 
-export function getWslDistro(): string | undefined {
-  return currentDistro;
-}
-
 // Resolve `docker <argv>` to the command + args that run it in the right place: directly on
 // the host, or inside the active distro through `wsl.exe`.
 export function dockerInvocation(argv: string[]): {

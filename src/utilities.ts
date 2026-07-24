@@ -10,10 +10,6 @@ export function getHomeDir(): string {
   return process.env["HOME"] ?? process.env["USERPROFILE"] ?? "";
 }
 
-export function getDevcontainerPath(wsFsPath: string): string {
-  return path.join(wsFsPath, ".devcontainer", "devcontainer.json");
-}
-
 function makeWorkspaceSlug(wsFsPath: string): string {
   const name = path.basename(wsFsPath).toLowerCase();
   let slug = name.replaceAll(/[^a-z0-9._-]+/gu, "-");

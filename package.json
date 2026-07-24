@@ -3,27 +3,12 @@
   "displayName": "Dev Containers OSS",
   "version": "1.0.0",
   "description": "Extension for building and running a dev container",
-  "categories": [
-    "Other"
-  ],
-  "keywords": [
-    "containers",
-    "devcontainer",
-    "docker"
-  ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/s-h-a-d-o-w/dev-containers-oss.git"
   },
   "publisher": "s-h-a-d-o-w",
-  "files": [
-    "assets/icon.png",
-    "dist/**",
-    "package.json",
-    "README.md",
-    "LICENSE"
-  ],
   "main": "./dist/extension.js",
   "scripts": {
     "e2e": "playwright test",
@@ -33,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "build": "node esbuild.mts --production",
     "package": "pnpm build && vsce package --no-dependencies",
-    "prepare": "husky"
+    "prepare": "husky",
+    "knip": "knip"
   },
   "dependencies": {
     "@devcontainers/cli": "^0.87.0"
@@ -41,11 +27,12 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@s-h-a-d-o-w/oxlint-config": "^1.1.2",
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.13.3",
     "@types/vscode": "^1.125.0",
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.1",
     "husky": "^9.1.7",
+    "knip": "^6.29.0",
     "ky": "^2.0.2",
     "lint-staged": "^17.0.8",
     "oxfmt": "^0.59.0",
@@ -152,6 +139,21 @@
   },
   "enabledApiProposals": [
     "resolvers"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "containers",
+    "devcontainer",
+    "docker"
+  ],
+  "files": [
+    "assets/icon.png",
+    "dist/**",
+    "package.json",
+    "README.md",
+    "LICENSE"
   ],
   "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065"
 }

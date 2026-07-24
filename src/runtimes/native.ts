@@ -47,7 +47,7 @@ import { getServerDataFolderName, readProductJson } from "../hostInfo.ts";
 // recovered purely from the authority string (no external state needed).
 export const AUTHORITY_PREFIX = EXTENSION_ID;
 
-export function encodeAuthority(localFolder: string): string {
+function encodeAuthority(localFolder: string): string {
   return `${AUTHORITY_PREFIX}+${Buffer.from(localFolder, "utf8").toString("hex")}`;
 }
 

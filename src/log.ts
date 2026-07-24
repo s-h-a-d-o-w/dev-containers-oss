@@ -15,8 +15,7 @@ let isDev = false;
 declare const __BUILD_INFO__:
   | { version: string; buildTimestamp: number }
   | undefined;
-
-export function getBuildInfo(): { version: string; buildTimestamp: number } {
+function getBuildInfo(): { version: string; buildTimestamp: number } {
   return __BUILD_INFO__ ?? { version: "unknown", buildTimestamp: 0 };
 }
 
@@ -73,7 +72,7 @@ export function setBufferedLog(text: string): void {
 // extension. A Pseudoterminal has no live shell for the user to type into; writes made
 // before the terminal is opened are buffered so nothing is lost. Once finish() is called,
 // any keypress closes the terminal.
-export function createLogTerminal(name: string): {
+function createLogTerminal(name: string): {
   write: (text: string) => void;
   finish: () => void;
 } {

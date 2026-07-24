@@ -11,7 +11,7 @@ import { dockerInvocation } from "./wsl.ts";
 
 // Build the argv for a `docker exec` invocation. Both runtimes talk to the container
 // this way; centralizing the argument order keeps the two transports consistent.
-export function dockerExecArgs(
+function dockerExecArgs(
   containerId: string,
   opts: { user?: string; interactive?: boolean },
   argv: string[],
@@ -67,7 +67,7 @@ function withEmbeddedData(script: string, data?: string): string {
 }
 
 // Streaming variant (mirrors runCommand): output goes to the log terminal.
-export function dockerExecShell(
+function dockerExecShell(
   containerId: string,
   { data, user }: { data?: string; user?: string },
   script: string,
@@ -181,7 +181,7 @@ export async function getUserHome(
 // Seed the container user's known_hosts from the host so outbound SSH (e.g. git over
 // SSH, using the forwarded agent) does not stop at an interactive host-key prompt.
 // Entries are merged and de-duplicated, leaving any keys already present in place.
-export async function ensureKnownHostsInContainer(
+async function ensureKnownHostsInContainer(
   containerId: string,
   user: string,
 ): Promise<void> {
@@ -210,7 +210,7 @@ export async function ensureKnownHostsInContainer(
 // Copy the host's ~/.gitconfig into the container user's home so commits made inside
 // the container carry the same identity (user.name/email) and settings as on the host.
 // The file is written verbatim; any existing container-side .gitconfig is replaced.
-export async function ensureGitConfigInContainer(
+async function ensureGitConfigInContainer(
   containerId: string,
   user: string,
 ): Promise<void> {

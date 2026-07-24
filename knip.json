@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "tags": ["-lintignore"],
+  "ignoreDependencies": ["@devcontainers/cli"],
+  "ignore": ["lint-staged.config.mts", "src/agentBridgeContainer.js"]
+}

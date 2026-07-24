@@ -31,7 +31,7 @@ import {
 import { EXTENSION_ID } from "../constants";
 import { dockerCommandLinePrefix } from "../wsl";
 
-export const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
+const SSH_REMOTE_AUTHORITY_PREFIX = "ssh-remote+";
 
 // The alias of the SSH container this window is connected to, if it is one of ours.
 export function getConnectedHostAlias(): string | undefined {
@@ -47,7 +47,7 @@ export function getConnectedHostAlias(): string | undefined {
 
 // Local (host-side) marker whose presence tells the reopened window to display the log
 // once, and whose contents carry the log text itself.
-export function getHandoffMarkerPath(hostAlias: string): string {
+function getHandoffMarkerPath(hostAlias: string): string {
   return path.join(os.tmpdir(), `${EXTENSION_ID}-handoff-${hostAlias}.pending`);
 }
 
@@ -157,9 +157,7 @@ async function resolvePublicKeyPath(): Promise<string | undefined> {
 
 // Install and prepare sshd inside the CLI-managed container. The devcontainer spec
 // image is not guaranteed to ship an SSH server, so we bolt it on at runtime.
-export async function ensureSshdInContainer(
-  containerId: string,
-): Promise<void> {
+async function ensureSshdInContainer(containerId: string): Promise<void> {
   getLog().appendLine("Ensuring sshd is available in the container...");
   const script = [
     "set -e",
@@ -225,7 +223,7 @@ async function verifySshLogin(hostAlias: string): Promise<boolean> {
   return false;
 }
 
-export async function setupSshAccess(
+async function setupSshAccess(
   containerId: string,
   user: string,
 ): Promise<void> {
@@ -236,7 +234,7 @@ export async function setupSshAccess(
   await copyHostDevEnvironment(containerId, user);
 }
 
-export function openSshTerminal(title: string, hostAlias: string): Terminal {
+function openSshTerminal(title: string, hostAlias: string): Terminal {
   const sshTerminal = window.createTerminal({
     name: title,
     shellPath: "ssh",

@@ -1,8 +1,8 @@
 # Dev Containers OSS
 
-For VSCodium and other VS Code-based IDEs that don't ship their own dev containers support.
+For VSCodium and other VS Code-based IDEs that don't ship their own dev containers support. Resembles Microsoft's [official extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) as close as reasonable (see [differences](#differences-to-the-official-extension) below).
 
-**PLEASE NOTE:** This uses proposed VS Code APIs (just like Microsoft's extension), which are subject to change at any time. Which means that any IDE update may cause this extension to stop working.
+**PLEASE NOTE:** This uses proposed VS Code APIs (just like the official extension), which are subject to change at any time. Which means that any IDE update may cause this extension to stop working.
 
 ## Getting started
 
