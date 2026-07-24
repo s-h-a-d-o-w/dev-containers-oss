@@ -1,14 +1,26 @@
 # Dev Containers OSS
 
-Alternative to the proprietary VS Code Dev Containers extension for VSCodium and other VS Code-based IDEs that don't have their own dev containers support.
+For VSCodium and other VS Code-based IDEs that don't ship their own dev containers support.
 
-**PLEASE NOTE:** This uses proposed vscode APIs (just like the official extension), which are subject to change at any time. Which means that any IDE update may cause this extension to stop working.
+**PLEASE NOTE:** This uses proposed VS Code APIs (just like Microsoft's extension), which are subject to change at any time. Which means that any IDE update may cause this extension to stop working.
 
 ## Getting started
 
 Requirements are the same as official, see: https://code.visualstudio.com/docs/devcontainers/containers#_system-requirements
 
 Don't forget to make your SSH key available if you want to commit through the UI: https://code.visualstudio.com/remote/advancedcontainers/sharing-git-credentials#_using-ssh-keys
+
+### Windows
+
+Put your projects on the WSL file system. and then just open them from there. No WSL extension needed.
+
+Native file system actually works too but you would have a _really_ bad time with it. Here are some numbers from running `pnpm install` on a project:
+
+```
+Native file system WITHOUT dev container: ~29s
+Native file system with devcontainer: ~4m15s
+WSL file system with devcontainer: ~20s
+```
 
 ## Differences to the official extension
 
