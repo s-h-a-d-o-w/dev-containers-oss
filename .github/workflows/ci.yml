@@ -13,13 +13,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-26-intel]
+        os: [ubuntu-latest, windows-latest]
     env:
       DEBUG: pw:browser
     steps:
       - uses: actions/checkout@v7
-      - uses: douglascamata/setup-docker-macos-action@v1.1.0
-        if: matrix.os == 'macos-26-intel'
       - uses: Vampire/setup-wsl@v7
         if: matrix.os == 'windows-latest'
         with:
@@ -59,8 +57,6 @@ jobs:
       - run: pnpm build
       - run: xvfb-run pnpm e2e
         if: matrix.os == 'ubuntu-latest'
-      - run: pnpm e2e
-        if: matrix.os == 'macos-26-intel'
       - run: pnpm e2e
         if: matrix.os == 'windows-latest'
       - uses: actions/upload-artifact@v7

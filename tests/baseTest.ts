@@ -26,17 +26,6 @@ type TestFixtures = {
   workbox: Page;
 };
 
-// Minimal shape of the Electron main-process module used inside
-// electronApp.evaluate, since the `electron` types aren't installed.
-type ElectronMainModule = {
-  BrowserWindow: {
-    getAllWindows: () => {
-      setBounds: (bounds: { height: number; width: number }) => void;
-    }[];
-  };
-};
-
-const isMac = process.platform === "darwin";
 const isWindows = process.platform === "win32";
 
 export const test = base.extend<TestFixtures>({
@@ -58,7 +47,6 @@ export const test = base.extend<TestFixtures>({
         "--skip-welcome",
         "--skip-release-notes",
         "--disable-workspace-trust",
-        isMac ? "--window-size=1280,720" : "",
         `--extensionDevelopmentPath=${path.join(__dirname, "..")}`,
         `--extensions-dir=${path.join(defaultCachePath, "extensions")}`,
         `--user-data-dir=${path.join(defaultCachePath, "user-data")}`,
@@ -74,17 +62,6 @@ export const test = base.extend<TestFixtures>({
     });
 
     const workbox = await electronApp.firstWindow();
-    if (isMac) {
-      // Playwright's setViewportSize is a no-op for Electron (the page is bound to
-      // the real OS window), so resize the BrowserWindow from the main process.
-      await electronApp.evaluate(
-        ({ BrowserWindow }: ElectronMainModule, { width, height }) => {
-          const [win] = BrowserWindow.getAllWindows();
-          win?.setBounds({ width, height });
-        },
-        { width: 1280, height: 720 },
-      );
-    }
     await workbox.context().tracing.start({
       screenshots: true,
       snapshots: true,
@@ -100,24 +77,7 @@ export const test = base.extend<TestFixtures>({
       path: tracePath,
       contentType: "application/zip",
     });
-    // With an active dev-container connection, a graceful shutdown waits on the
-    // remote to disconnect and can hang well past the test timeout. Fixture
-    // teardown shares the test timeout budget, so bound the close and fall back
-    // to killing the underlying process if it does not exit in time.
-    try {
-      await Promise.race([
-        electronApp.close(),
-        // oxlint-disable-next-line promise/param-names
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("electronApp.close() timed out")),
-            15_000,
-          ),
-        ),
-      ]);
-    } catch {
-      electronApp.process().kill("SIGKILL");
-    }
+    await electronApp.close();
     const logPath = path.join(defaultCachePath, "user-data");
     if (fs.existsSync(logPath)) {
       const logOutputPath = test.info().outputPath("vscode-logs");
