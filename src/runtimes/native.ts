@@ -44,14 +44,15 @@ import { getServerDataFolderName, readProductJson } from "../hostInfo.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(localFolder)>`, so the container a window belongs to can be
-// recovered purely from the authority string (no external state needed).
-export const AUTHORITY_PREFIX = EXTENSION_ID;
+// recovered purely from the authority string (no external state needed). Must be
+// `dev-container` for compatibility with other tools that check for this authority.
+export const AUTHORITY_PREFIX = "dev-container";
 
 function encodeAuthority(localFolder: string): string {
   return `${AUTHORITY_PREFIX}+${Buffer.from(localFolder, "utf8").toString("hex")}`;
 }
 
-// `authority` here is the part after the scheme, e.g. `dev-containers-oss+<hex>`.
+// `authority` here is the part after the scheme, e.g. `dev-container+<hex>`.
 export function decodeLocalFolder(authority: string): string {
   const plus = authority.indexOf("+");
   const hex = plus !== -1 ? authority.slice(plus + 1) : authority;

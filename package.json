@@ -140,7 +140,7 @@
     }
   },
   "activationEvents": [
-    "onResolveRemoteAuthority:dev-containers-oss",
+    "onResolveRemoteAuthority:dev-container",
     "onStartupFinished",
     "workspaceContains:.devcontainer/devcontainer.json"
   ],
