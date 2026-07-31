@@ -43,20 +43,65 @@ import {
 import { getServerDataFolderName, readProductJson } from "../hostInfo.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
-// `<AUTHORITY_PREFIX>+<hex(localFolder)>`, so the container a window belongs to can be
-// recovered purely from the authority string (no external state needed). Must be
-// `dev-container` for compatibility with other tools that check for this authority.
+// `<AUTHORITY_PREFIX>+<hex(json)>`, where the JSON payload mirrors the shape emitted by the
+// official Dev Containers extension so other tools that read the authority can recover the
+// host path, docker mode and config file. The container a window belongs to can be recovered
+// purely from the authority string (no external state needed). Must be `dev-container` for
+// compatibility with other tools that check for this authority.
 export const AUTHORITY_PREFIX = "dev-container";
 
-function encodeAuthority(localFolder: string): string {
-  return `${AUTHORITY_PREFIX}+${Buffer.from(localFolder, "utf8").toString("hex")}`;
+type AuthorityPayload = {
+  hostPath: string;
+  // Whether the Docker daemon runs on the same machine as VS Code. The official Dev
+  // Containers extension emits `false` even for local dev containers, so we mirror that.
+  localDocker: boolean;
+  configFile: {
+    // VS Code marshalling id. `1` tags this object as a `Uri`, so consumers revive it into a
+    // real `Uri` instance (via `URI.revive`) instead of a plain object.
+    $mid: number;
+    fsPath: string;
+    external: string;
+    path: string;
+    scheme: string;
+  };
+};
+
+function buildAuthorityPayload(localFolder: string): AuthorityPayload {
+  const configUri = Uri.file(
+    path.join(localFolder, ".devcontainer", "devcontainer.json"),
+  );
+
+  return {
+    hostPath: localFolder,
+    localDocker: false,
+    configFile: {
+      $mid: 1,
+      fsPath: configUri.fsPath,
+      external: configUri.toString(),
+      path: configUri.path,
+      scheme: configUri.scheme,
+    },
+  };
 }
 
-// `authority` here is the part after the scheme, e.g. `dev-container+<hex>`.
+function encodeAuthority(localFolder: string) {
+  const json = JSON.stringify(buildAuthorityPayload(localFolder));
+  return `${AUTHORITY_PREFIX}+${Buffer.from(json, "utf8").toString("hex")}`;
+}
+
 export function decodeLocalFolder(authority: string): string {
   const plus = authority.indexOf("+");
   const hex = plus !== -1 ? authority.slice(plus + 1) : authority;
-  return Buffer.from(hex, "hex").toString("utf8");
+  const decoded = Buffer.from(hex, "hex").toString("utf8");
+
+  try {
+    const payload = JSON.parse(decoded) as AuthorityPayload;
+    return payload.hostPath;
+  } catch {
+    // Legacy authority: the hex used to decode straight to the host path.
+  }
+
+  return decoded;
 }
 
 // Local (host-side) marker carrying the build log that the launching window printed before
