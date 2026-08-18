@@ -17,7 +17,11 @@ import fs from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import type { DevcontainerUpResult, ProductInfo } from "../types/types.ts";
+import type {
+  BuildOptions,
+  DevcontainerUpResult,
+  ProductInfo,
+} from "../types/types.ts";
 import {
   devcontainerUp,
   readMergedCustomizations,
@@ -649,13 +653,13 @@ export function registerRemoteResolver(
 export async function nativeRuntime(
   context: ExtensionContext,
   localFolder: string,
-  forceRebuild: boolean,
+  buildOptions: BuildOptions,
 ): Promise<void> {
   resetLog();
   logBuildInfo();
 
   const up = await withLogTerminal("Devcontainer Configuration", () =>
-    devcontainerUp(context, localFolder, { rebuild: forceRebuild }),
+    devcontainerUp(context, localFolder, buildOptions),
   );
   // Hand the build log off to the window we are about to open.
   fs.writeFileSync(getHandoffMarkerPath(localFolder), getBufferedLog());

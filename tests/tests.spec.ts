@@ -12,7 +12,7 @@ test("basics", async ({ workbox }) => {
   await workbox.getByRole("button", { name: "Reopen in Container" }).click();
   await expect(workbox).toHaveTitle(/Dev Container/u);
 
-  // REBUILD
+  // REBUILD TRIGGERED BY FILE CHANGE
   await workbox.locator("a").filter({ hasText: ".devcontainer" }).click({
     timeout: 120_000, // Windows needs some time
   });
@@ -50,5 +50,14 @@ test("basics", async ({ workbox }) => {
       throw error;
     }
   }).toPass({ timeout: 30_000 });
+
+  // REBUILD WITHOUT CACHE
+  await workbox.getByRole("main").press("ControlOrMeta+Shift+p");
+  await workbox
+    .getByRole("textbox", { name: "Type the name of a command to run." })
+    .fill(">Rebuild Without Cache");
+  await workbox.getByRole("option", { name: "Rebuild Without Cache" }).click();
+  await expect(workbox).not.toHaveTitle(/Dev Container/u);
+  await expect(workbox).toHaveTitle(/Dev Container/u);
   // await workbox.pause();
 });

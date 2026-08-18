@@ -13,6 +13,10 @@ Codium may even get stuck at "Opening Remote...". I was iterating on tests for m
 
 If you know fixes, please contribute or let me know!
 
+# `ELECTRON_RUN_AS_NODE=`
+
+We set this to empty because when it is enabled, running vscodium just results in a node prompt. Usually, it shouldn't be set but... on some machines, it is.
+
 # macOS
 
 Don't bother. These are the runtimes as of writing:

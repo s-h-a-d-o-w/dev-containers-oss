@@ -11,7 +11,7 @@
   "publisher": "s-h-a-d-o-w",
   "main": "./dist/extension.js",
   "scripts": {
-    "e2e": "playwright test",
+    "e2e": "ELECTRON_RUN_AS_NODE= playwright test",
     "dev": "node esbuild.mts --watch",
     "lint": "oxlint",
     "format": "oxfmt",
@@ -54,6 +54,11 @@
       {
         "command": "dev-containers-oss.rebuildAndOpen",
         "title": "Rebuild and Reopen in Container",
+        "category": "Dev Containers"
+      },
+      {
+        "command": "dev-containers-oss.rebuildNoCacheAndOpen",
+        "title": "Rebuild Without Cache and Reopen in Container",
         "category": "Dev Containers"
       },
       {
@@ -102,6 +107,10 @@
           "when": "dev-containers-oss.hasConfig"
         },
         {
+          "command": "dev-containers-oss.rebuildNoCacheAndOpen",
+          "when": "dev-containers-oss.hasConfig"
+        },
+        {
           "command": "dev-containers-oss.reopenFolderLocally",
           "when": "remoteName"
         },
@@ -128,12 +137,12 @@
         },
         {
           "command": "dev-containers-oss.reopenFolderLocally",
-          "group": "remote_30_devcontainer_3local@4",
+          "group": "remote_30_devcontainer_3local@5",
           "when": "remoteName"
         },
         {
           "command": "dev-containers-oss.resetReopenPrompt",
-          "group": "remote_30_devcontainer_3local@5",
+          "group": "remote_30_devcontainer_3local@6",
           "when": "dev-containers-oss.hasConfig"
         }
       ]
@@ -170,5 +179,5 @@
     "README.md",
     "LICENSE"
   ],
-  "packageManager": "pnpm@11.15.1+sha512.81350b07e53c9538a02f1f2303b4290fa2d7be04e56e2a970c4cc4b417dc761de196edabd49d55c7dc9580db81007c44143e4e3d7e462b3000d23c255122d065"
+  "packageManager": "pnpm@11.22.0+sha512.1ff870c4c6133dfd88fb2afc46dd13d47f09c9794b438c6fdb47ca98caf3bc16381ee0be93a091b8e3824cf01f889f46d7d9e20910fb0be1ab0fb5baa80dd621"
 }

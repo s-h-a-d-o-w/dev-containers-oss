@@ -6,6 +6,7 @@ import { getLog } from "./log.ts";
 import { EXTENSION_ID } from "./constants.ts";
 import { parseWslInfo, setWslDistroFromPath } from "./wsl.ts";
 import type {
+  BuildOptions,
   DevcontainerCustomizations,
   DevcontainerUpResult,
 } from "./types/types.ts";
@@ -138,23 +139,31 @@ function parseDevcontainerUpResult(output: string) {
 export async function devcontainerUp(
   ctx: ExtensionContext,
   wsFsPath: string,
-  options?: { rebuild?: boolean },
+  options?: BuildOptions,
 ): Promise<DevcontainerUpResult> {
   // `devcontainer up` is the entry point of every flow (native resolver, native launch, and
   // SSH). Recomputing the WSL context here means every docker command issued afterwards in
   // this process routes to the distro that hosts the container (or to the host if none).
   setWslDistroFromPath(wsFsPath);
+
   const args = ["up", "--workspace-folder", wsFsPath];
+  if (options?.noCache) {
+    args.push("--build-no-cache");
+  }
   if (options?.rebuild) {
     args.push("--remove-existing-container");
+    window.showInformationMessage(
+      options.noCache
+        ? "Rebuilding devcontainer without cache..."
+        : "Rebuilding devcontainer...",
+    );
   }
-  if (options?.rebuild) {
-    window.showInformationMessage("Rebuilding devcontainer...");
-  }
+
   const { code, stderr, stdout } = await runCliCapture(ctx, args, {
     cwd: wsFsPath,
     quiet: false,
   });
+
   const result =
     parseDevcontainerUpResult(stdout) ?? parseDevcontainerUpResult(stderr);
   if (code !== 0 || result?.["outcome"] !== "success") {
@@ -168,6 +177,7 @@ export async function devcontainerUp(
       "devcontainer up succeeded but did not return a containerId",
     );
   }
+
   return {
     containerId: result["containerId"] as string,
     remoteUser: (result["remoteUser"] ?? "") as string,

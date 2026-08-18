@@ -12,6 +12,7 @@ import {
   type WorkspaceFolder,
 } from "vscode";
 import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";
+import type { BuildOptions } from "./types/types.ts";
 import { getWorkspaceFolder } from "./utilities.ts";
 import { getLog, resetLog, setDevMode, withLogTerminal } from "./log.ts";
 import {
@@ -34,6 +35,7 @@ const DONT_PROMPT_REOPEN_KEY = `${EXTENSION_ID}.dontPromptReopen`;
 type PendingReopen = {
   localFolder: string;
   rebuild: boolean;
+  noCache?: boolean;
   native?: boolean;
 };
 
@@ -164,13 +166,11 @@ export function activate(context: ExtensionContext) {
 
   async function openFolderWithSsh(
     wsFsPath: string,
-    forceRebuild: boolean,
+    buildOptions: BuildOptions,
   ): Promise<void> {
     resetLog();
     await withLogTerminal("Devcontainer Configuration", async () => {
-      const result = await devcontainerUp(context, wsFsPath, {
-        rebuild: forceRebuild,
-      });
+      const result = await devcontainerUp(context, wsFsPath, buildOptions);
       const customizations = await readMergedCustomizations(context, wsFsPath);
       await sshRuntime(
         wsFsPath,
@@ -182,7 +182,7 @@ export function activate(context: ExtensionContext) {
     });
   }
 
-  async function useSsh(forceRebuild: boolean): Promise<void> {
+  async function useSsh(buildOptions: BuildOptions): Promise<void> {
     const hostAlias = getConnectedHostAlias();
     if (hostAlias) {
       // We are inside the container we are about to (re)build. The devcontainer CLI runs
@@ -198,7 +198,8 @@ export function activate(context: ExtensionContext) {
       }
       await context.globalState.update(PENDING_REOPEN_KEY, {
         localFolder,
-        rebuild: forceRebuild,
+        rebuild: buildOptions.rebuild,
+        noCache: buildOptions.noCache,
       } satisfies PendingReopen);
       await commands.executeCommand(
         "vscode.openFolder",
@@ -207,10 +208,10 @@ export function activate(context: ExtensionContext) {
       );
       return;
     }
-    await openFolderWithSsh(getWorkspaceOrThrow().uri.fsPath, forceRebuild);
+    await openFolderWithSsh(getWorkspaceOrThrow().uri.fsPath, buildOptions);
   }
 
-  async function useNative(forceRebuild: boolean): Promise<void> {
+  async function useNative(buildOptions: BuildOptions): Promise<void> {
     const connectedLocalFolder = getConnectedContainerLocalFolder();
     if (connectedLocalFolder) {
       // We are inside the container the resolver connected us to. Rebuilding removes this
@@ -218,7 +219,8 @@ export function activate(context: ExtensionContext) {
       // detach first: reopen the host folder locally and resume there on activation.
       await context.globalState.update(PENDING_REOPEN_KEY, {
         localFolder: connectedLocalFolder,
-        rebuild: forceRebuild,
+        rebuild: buildOptions.rebuild,
+        noCache: buildOptions.noCache,
         native: true,
       } satisfies PendingReopen);
       await commands.executeCommand(
@@ -231,26 +233,26 @@ export function activate(context: ExtensionContext) {
     await nativeRuntime(
       context,
       getWorkspaceOrThrow().uri.fsPath,
-      forceRebuild,
+      buildOptions,
     );
   }
 
   // Single entry point for opening/rebuilding a devcontainer. When already connected we
   // stay on whichever runtime the current window uses (its authority tells us which). For
   // a fresh open from a local window we prefer the native runtime and fall back to SSH.
-  async function openDevcontainer(forceRebuild: boolean): Promise<void> {
+  async function openDevcontainer(buildOptions: BuildOptions): Promise<void> {
     if (getConnectedHostAlias()) {
-      await useSsh(forceRebuild);
+      await useSsh(buildOptions);
       return;
     }
     if (getConnectedContainerLocalFolder()) {
-      await useNative(forceRebuild);
+      await useNative(buildOptions);
       return;
     }
     if (nativeAvailable) {
-      await useNative(forceRebuild);
+      await useNative(buildOptions);
     } else {
-      await useSsh(forceRebuild);
+      await useSsh(buildOptions);
     }
   }
 
@@ -273,11 +275,15 @@ export function activate(context: ExtensionContext) {
       return;
     }
     await context.globalState.update(PENDING_REOPEN_KEY, undefined);
+    const buildOptions: BuildOptions = {
+      rebuild: pending.rebuild,
+      noCache: pending.noCache,
+    };
     await withUiErrorHandling(
       () =>
         pending.native
-          ? nativeRuntime(context, pending.localFolder, pending.rebuild)
-          : openFolderWithSsh(pending.localFolder, pending.rebuild),
+          ? nativeRuntime(context, pending.localFolder, buildOptions)
+          : openFolderWithSsh(pending.localFolder, buildOptions),
       { appendToOutput: false },
     )();
   }
@@ -317,7 +323,7 @@ export function activate(context: ExtensionContext) {
     `${EXTENSION_ID}.openFolderInDevcontainer`,
     withUiErrorHandling(
       async () => {
-        await openDevcontainer(false);
+        await openDevcontainer({ rebuild: false });
       },
       { appendToOutput: false },
     ),
@@ -327,7 +333,17 @@ export function activate(context: ExtensionContext) {
     `${EXTENSION_ID}.rebuildAndOpen`,
     withUiErrorHandling(
       async () => {
-        await openDevcontainer(true);
+        await openDevcontainer({ rebuild: true });
+      },
+      { appendToOutput: false },
+    ),
+  );
+
+  const rebuildNoCacheAndOpen = commands.registerCommand(
+    `${EXTENSION_ID}.rebuildNoCacheAndOpen`,
+    withUiErrorHandling(
+      async () => {
+        await openDevcontainer({ rebuild: true, noCache: true });
       },
       { appendToOutput: false },
     ),
@@ -395,6 +411,7 @@ export function activate(context: ExtensionContext) {
     openFolderInDevcontainer,
     openDevcontainerConfig,
     rebuildAndOpen,
+    rebuildNoCacheAndOpen,
     reopenFolderLocally,
     resetReopenPrompt,
   );

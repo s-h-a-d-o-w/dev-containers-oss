@@ -15,6 +15,11 @@ export type DevcontainerUpResult = {
   remoteWorkspaceFolder: string;
 };
 
+export type BuildOptions = {
+  rebuild: boolean;
+  noCache?: boolean;
+};
+
 export type DevcontainerCustomizations = {
   extensions: string[];
   settings: Record<string, unknown>;
