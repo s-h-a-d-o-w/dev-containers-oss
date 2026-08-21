@@ -1,4 +1,9 @@
-import { EventEmitter, type Pseudoterminal, window } from "vscode";
+import {
+  EventEmitter,
+  type OutputChannel,
+  type Pseudoterminal,
+  window,
+} from "vscode";
 
 export type DevcontainerLog = {
   append: (value: string) => void;
@@ -8,6 +13,7 @@ export type DevcontainerLog = {
 let logBuffer = "";
 let logSink: ((chunk: string) => void) | undefined;
 let logger: DevcontainerLog | undefined;
+let outputChannel: OutputChannel | undefined;
 let isDev = false;
 
 // Injected by esbuild via a banner.
@@ -21,17 +27,25 @@ function getBuildInfo(): { version: string; buildTimestamp: number } {
 // Central log target for all devcontainer setup output. Every write is buffered (so the
 // full session log can be handed off and replayed in a terminal after the folder reopens
 // over SSH) and, while a build is in progress, streamed straight into that build's terminal
-// via the sink set by withLogTerminal. There is deliberately no Output channel: setup
-// output only ever surfaces in the read-only build terminal, matching Cursor and VS Code.
+// via the sink set by withLogTerminal. Whatever is logged outside a build terminal goes to
+// the output channel instead, so it is never silently dropped.
+function writeOut(value: string): void {
+  logBuffer += value;
+  if (logSink) {
+    logSink(value);
+    return;
+  }
+  outputChannel ??= window.createOutputChannel("Dev Containers OSS");
+  outputChannel.append(value);
+}
+
 export function getLog(): DevcontainerLog {
   logger ??= {
     append(value) {
-      logBuffer += value;
-      logSink?.(value);
+      writeOut(value);
     },
     appendLine(value) {
-      logBuffer += value + "\n";
-      logSink?.(value + "\n");
+      writeOut(value + "\n");
     },
   };
   return logger;
