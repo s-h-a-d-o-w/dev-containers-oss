@@ -11,7 +11,7 @@
   "publisher": "s-h-a-d-o-w",
   "main": "./dist/extension.js",
   "scripts": {
-    "e2e": "ELECTRON_RUN_AS_NODE= playwright test",
+    "e2e": "playwright test",
     "dev": "node esbuild.mts --watch",
     "lint": "oxlint",
     "format": "oxfmt",
