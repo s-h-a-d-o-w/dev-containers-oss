@@ -45,6 +45,7 @@ import {
   spawnDockerExec,
 } from "../dockerOps.ts";
 import { getServerDataFolderName, readProductJson } from "../hostInfo.ts";
+import { createTunnel, setTunnelTarget } from "../portForwarding.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(json)>`, where the JSON payload mirrors the shape emitted by the
@@ -600,6 +601,15 @@ async function prepareContainerConnection(
   getLog().appendLine(
     `Container server is listening on 127.0.0.1:${port}; establishing managed connection.`,
   );
+
+  // Port forwarding uses the same `docker exec` transport, so it needs to know which
+  // container (and which node binary) the window is currently connected to.
+  setTunnelTarget({
+    containerId: up.containerId,
+    nodeBin: `${home}/${product.serverDataFolderName}/bin/${product.commit}/node`,
+    user,
+  });
+
   return new ManagedResolvedAuthority(
     makeManagedConnection(up.containerId, user, home, product, port),
   );
@@ -631,6 +641,8 @@ export function registerRemoteResolver(
         throw RemoteAuthorityResolverError.NotAvailable(message, true);
       }
     },
+
+    tunnelFactory: createTunnel,
   };
 
   return [
