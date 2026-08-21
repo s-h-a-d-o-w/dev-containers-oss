@@ -12,6 +12,9 @@ export type TunnelTarget = {
   containerId: string;
   // Absolute path to the node binary the container server ships, used to run the relay.
   nodeBin: string;
+  // Absolute path of the server install directory inside the container, used to recognise
+  // ports that belong to the server itself.
+  serverDataFolder: string;
   user: string;
 };
 
@@ -92,6 +95,22 @@ function pipeConnection(
   child.stdin.on("error", teardown);
   child.on("error", teardown);
   child.on("close", () => socket.destroy());
+}
+
+// The container's port scan reports every listening socket, including the ones opened by the
+// server itself and by whatever runs inside it (the extension host's inspect port, language
+// servers such as ESLint's, debug adapters). So we drop any candidate whose process command
+// line comes out of the server install directory.
+export function showCandidatePort(
+  _host: string,
+  _port: number,
+  detail: string,
+): Promise<boolean> {
+  const serverDataFolder = target?.serverDataFolder;
+
+  return Promise.resolve(
+    serverDataFolder === undefined || !detail.includes(serverDataFolder),
+  );
 }
 
 // Implementing this lets the core enable its forwarded ports features (the Ports view and

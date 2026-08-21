@@ -45,7 +45,11 @@ import {
   spawnDockerExec,
 } from "../dockerOps.ts";
 import { getServerDataFolderName, readProductJson } from "../hostInfo.ts";
-import { createTunnel, setTunnelTarget } from "../portForwarding.ts";
+import {
+  createTunnel,
+  setTunnelTarget,
+  showCandidatePort,
+} from "../portForwarding.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(json)>`, where the JSON payload mirrors the shape emitted by the
@@ -607,6 +611,7 @@ async function prepareContainerConnection(
   setTunnelTarget({
     containerId: up.containerId,
     nodeBin: `${home}/${product.serverDataFolderName}/bin/${product.commit}/node`,
+    serverDataFolder: `${home}/${product.serverDataFolderName}`,
     user,
   });
 
@@ -643,6 +648,7 @@ export function registerRemoteResolver(
     },
 
     tunnelFactory: createTunnel,
+    showCandidatePort,
   };
 
   return [
