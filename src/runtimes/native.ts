@@ -252,6 +252,53 @@ async function ensureServerInstalled(
   return binDir;
 }
 
+// The server trees are keyed by commit, so a client upgrade installs beside the previous
+// one — but the pidfile is not, so a server still running from the old commit would be
+// reused and silently serve the upgraded client. Stop it and drop the trees it came from.
+async function stopOutdatedServer(
+  containerId: string,
+  user: string,
+  home: string,
+  product: ProductInfo,
+): Promise<void> {
+  const stateDir = `${home}/${product.serverDataFolderName}`;
+  const binRoot = `${stateDir}/bin`;
+  const binDir = `${binRoot}/${product.commit}`;
+  const script = [
+    `PIDF="${stateDir}/.codium-reh.pid"`,
+    'PID=$(cat "$PIDF" 2>/dev/null)',
+    'if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then',
+    // Both the wrapper script and the node process it execs carry the commit-keyed install
+    // directory in their argv, which is what identifies the tree the server came from.
+    `  if tr '\\0' ' ' < "/proc/$PID/cmdline" 2>/dev/null | grep -qF "${binDir}/"; then`,
+    "    exit 0",
+    "  fi",
+    '  kill "$PID" 2>/dev/null',
+    '  for i in $(seq 1 25); do kill -0 "$PID" 2>/dev/null || break; sleep 0.2; done',
+    '  kill -9 "$PID" 2>/dev/null',
+    '  echo "STOPPED"',
+    "fi",
+    `rm -f "$PIDF" "${stateDir}/.codium-reh.log"`,
+    `for tree in "${binRoot}"/*; do`,
+    `  if [ -d "$tree" ] && [ "$tree" != "${binDir}" ]; then`,
+    '    rm -rf "$tree"',
+    "  fi",
+    "done",
+    "exit 0",
+  ].join("\n");
+
+  const res = await dockerExecShellCapture(
+    containerId,
+    { quiet: true, user },
+    script,
+  );
+  if (res.stdout.includes("STOPPED")) {
+    getLog().appendLine(
+      `Stopped the container server left over from a previous client version; replacing it with ${product.commit}.`,
+    );
+  }
+}
+
 // Start the server (idempotently) listening on a loopback port inside the container and
 // return that port. A pidfile keeps repeated resolves (e.g. window reloads) from spawning
 // duplicate servers, and the port is scraped from the server's own startup log.
@@ -551,6 +598,7 @@ async function prepareContainerConnection(
   // behaviour.
   const provisioned = await isContainerProvisioned(up.containerId, user, home);
   const setup = async () => {
+    await stopOutdatedServer(up.containerId, user, home, product);
     const binDir = await ensureServerInstalled(
       up.containerId,
       user,
