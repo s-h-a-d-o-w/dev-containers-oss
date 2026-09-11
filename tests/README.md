@@ -13,6 +13,10 @@ Codium may even get stuck at "Opening Remote...". I was iterating on tests for m
 
 If you know fixes, please contribute or let me know!
 
+# Windows
+
+[**Very flaky, at least with GitHub actions!**](https://github.com/s-h-a-d-o-w/dev-containers-oss/actions/runs/34600431861/job/103301338932)
+
 # macOS
 
 Don't bother. These are the runtimes as of writing:
