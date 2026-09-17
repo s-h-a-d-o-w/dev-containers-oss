@@ -22,8 +22,6 @@ function getExtensionGalleryHost() {
   }
 }
 
-// Open VSX intermittently serves 503/429 from its CDN edge while the service itself is
-// healthy, so a failed install is usually worth retrying rather than reporting as an outage.
 function getGalleryStatus(output: string): number | undefined {
   const status = Number(
     /Server returned (?<status>\d{3})/u.exec(output)?.groups?.["status"],
@@ -31,25 +29,15 @@ function getGalleryStatus(output: string): number | undefined {
   return status === 429 || status >= 500 ? status : undefined;
 }
 
-export async function installExtensionsInContainer(
+async function installExtensionInContainer(
   containerId: string,
   user: string,
   binDir: string,
   product: ProductInfo,
-  extensions: string[],
-): Promise<void> {
-  if (extensions.length === 0) {
-    return;
-  }
-
+  extension: string,
+) {
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
-  const params: string[] = [];
-  for (const id of extensions) {
-    params.push("--install-extension", id);
-  }
-  getLog().appendLine(
-    `Installing ${extensions.length} devcontainer extension(s) into the container server...`,
-  );
+  const params = ["--install-extension", extension];
 
   for (let attempt = 0; ; attempt++) {
     const res = await dockerExecShellCapture(
@@ -65,7 +53,7 @@ export async function installExtensionsInContainer(
     const galleryStatus = getGalleryStatus(output);
     const host = galleryStatus ? getExtensionGalleryHost() : undefined;
     getLog().appendLine(
-      `Extension install failed (exit code ${res.code}): ${output}`,
+      `Extension install failed for ${extension} (exit code ${res.code}): ${output}`,
     );
 
     if (galleryStatus) {
@@ -78,8 +66,8 @@ export async function installExtensionsInContainer(
     if (delayMs === undefined) {
       window.showWarningMessage(
         galleryStatus
-          ? `Devcontainer extensions could not be downloaded: the extension marketplace${host ? ` (${host}) ` : " "}kept returning ${galleryStatus}. The container itself is fine - retry the install later.`
-          : `Some devcontainer extensions may not have installed (server CLI exited with code ${res.code}). See the terminal for details.`,
+          ? `Devcontainer extension ${extension} could not be downloaded: the extension marketplace${host ? ` (${host}) ` : " "}kept returning ${galleryStatus}. The container itself is fine - retry the install later.`
+          : `Devcontainer extension ${extension} may not have installed (server CLI exited with code ${res.code}). See the terminal for details.`,
       );
       return;
     }
@@ -88,5 +76,32 @@ export async function installExtensionsInContainer(
       `Retrying extension install in ${delayMs / 1000}s (attempt ${attempt + 2} of ${RETRY_DELAYS_MS.length + 1})...`,
     );
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
+
+export async function installExtensionsInContainer(
+  containerId: string,
+  user: string,
+  binDir: string,
+  product: ProductInfo,
+  extensions: string[],
+): Promise<void> {
+  if (extensions.length === 0) {
+    return;
+  }
+
+  getLog().appendLine(
+    `Installing ${extensions.length} devcontainer extension(s) into the container server...`,
+  );
+
+  // Multi-extension server CLI calls can fail against Open VSX, while individual installs succeed.
+  for (const extension of extensions) {
+    await installExtensionInContainer(
+      containerId,
+      user,
+      binDir,
+      product,
+      extension,
+    );
   }
 }
