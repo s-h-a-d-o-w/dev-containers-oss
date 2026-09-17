@@ -42,7 +42,7 @@ async function installExtensionInContainer(
   for (let attempt = 0; ; attempt++) {
     const res = await dockerExecShellCapture(
       containerId,
-      { params, user },
+      { params, quiet: true, user },
       `"${serverBin}" "$@"`,
     );
     if (res.code === 0) {
