@@ -92,7 +92,7 @@ export async function installExtensionsInContainer(
   }
 
   getLog().appendLine(
-    `Installing ${extensions.length} devcontainer extension(s) into the container server...`,
+    `Installing ${extensions.length} extension(s) into the container...`,
   );
 
   // Multi-extension server CLI calls can fail against Open VSX, while individual installs succeed.
