@@ -223,9 +223,6 @@ async function ensureServerInstalled(
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
   const arch = await detectContainerArch(containerId);
   const url = buildServerDownloadUrl(product, "linux", arch);
-  getLog().appendLine(
-    `Ensuring server ${product.commit} (${arch}) is installed in the container...`,
-  );
   const script = [
     "set -e",
     `BIN="${binDir}"`,
@@ -249,6 +246,11 @@ async function ensureServerInstalled(
       `Failed to install server in container: ${res.stderr.trim() || `exit code ${res.code}`}`,
     );
   }
+
+  getLog().appendLine(
+    `Succeeded in finding server ${product.commit} (${arch}) in the container.`,
+  );
+
   return binDir;
 }
 
