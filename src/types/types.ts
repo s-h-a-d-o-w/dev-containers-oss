@@ -7,6 +7,7 @@ export type ProductInfo = {
   serverApplicationName: string;
   serverDataFolderName: string;
   serverDownloadUrlTemplate: string | undefined;
+  extensionsGallery?: { serviceUrl?: string } | undefined;
 };
 
 export type DevcontainerUpResult = {

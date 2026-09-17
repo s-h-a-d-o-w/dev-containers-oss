@@ -10,7 +10,6 @@ import {
   type RemoteAuthorityResolver,
   RemoteAuthorityResolverError,
   Uri,
-  window,
   workspace,
 } from "vscode";
 import fs from "node:fs";
@@ -35,6 +34,7 @@ import {
   withLogTerminal,
 } from "../log.ts";
 import { EXTENSION_ID } from "../constants.ts";
+import { installExtensionsInContainer } from "../containerExtensions.ts";
 import {
   applyRemoteMachineSettings,
   copyHostDevEnvironment,
@@ -343,39 +343,6 @@ async function ensureServerRunning(
     );
   }
   return Number(match.groups?.["port"]);
-}
-
-async function installExtensionsInContainer(
-  containerId: string,
-  user: string,
-  binDir: string,
-  product: ProductInfo,
-  extensions: string[],
-): Promise<void> {
-  if (extensions.length === 0) {
-    return;
-  }
-  const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
-  const params: string[] = [];
-  for (const id of extensions) {
-    params.push("--install-extension", id);
-  }
-  getLog().appendLine(
-    `Installing ${extensions.length} devcontainer extension(s) into the container server...`,
-  );
-  const res = await dockerExecShellCapture(
-    containerId,
-    { params, user },
-    `"${serverBin}" "$@"`,
-  );
-  if (res.code !== 0) {
-    getLog().appendLine(
-      `Extension install failed (exit code ${res.code}): ${res.stderr.trim() || res.stdout.trim() || "no output"}`,
-    );
-    window.showWarningMessage(
-      `Some devcontainer extensions may not have installed (server CLI exited with code ${res.code}). See the terminal for details.`,
-    );
-  }
 }
 
 // A single connection to the in-container server, tunneled through `docker exec`. VS Code's
