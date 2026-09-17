@@ -46,6 +46,7 @@ async function installExtensionInContainer(
       `"${serverBin}" "$@"`,
     );
     if (res.code === 0) {
+      getLog().appendLine(`Successfully installed ${extension}.`);
       return;
     }
 
