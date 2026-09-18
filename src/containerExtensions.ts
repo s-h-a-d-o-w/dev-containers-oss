@@ -30,9 +30,7 @@ function getGalleryStatus(output: string): number | undefined {
 }
 
 type InstallFailure = {
-  code: number;
   galleryStatus: number | undefined;
-  output: string;
 };
 
 async function installExtensionsWithRetries(
@@ -72,7 +70,7 @@ async function installExtensionsWithRetries(
 
     const delayMs = galleryStatus ? RETRY_DELAYS_MS[attempt] : undefined;
     if (delayMs === undefined) {
-      return { code: res.code, galleryStatus, output };
+      return { galleryStatus };
     }
 
     getLog().appendLine(
@@ -82,12 +80,21 @@ async function installExtensionsWithRetries(
   }
 }
 
-function warnAboutFailure(label: string, failure: InstallFailure) {
-  const host = failure.galleryStatus ? getExtensionGalleryHost() : undefined;
+function warnAboutFailures(failures: Map<string, InstallFailure>) {
+  const label = [...failures.keys()].join(", ");
+  const galleryStatus = [...failures.values()].find(
+    (failure) => failure.galleryStatus,
+  )?.galleryStatus;
+  const host = galleryStatus ? getExtensionGalleryHost() : undefined;
+  const noun =
+    failures.size === 1
+      ? `Devcontainer extension ${label}`
+      : `Devcontainer extensions ${label}`;
+
   window.showWarningMessage(
-    failure.galleryStatus
-      ? `Devcontainer extension ${label} could not be downloaded: the extension marketplace${host ? ` (${host}) ` : " "}kept returning ${failure.galleryStatus}. The container itself is fine - retry the install later.`
-      : `Devcontainer extension ${label} may not have installed (server CLI exited with code ${failure.code}). See the terminal for details.`,
+    galleryStatus
+      ? `${noun} could not be downloaded: the extension marketplace${host ? ` (${host}) ` : " "}kept returning ${galleryStatus}. The container itself is fine - retry the install later.`
+      : `${noun} may not have installed. See the terminal for details.`,
   );
 }
 
@@ -118,7 +125,7 @@ export async function installExtensionsInContainer(
   }
 
   if (extensions.length === 1) {
-    warnAboutFailure(extensions[0]!, failure);
+    warnAboutFailures(new Map([[extensions[0]!, failure]]));
     return;
   }
 
@@ -127,6 +134,7 @@ export async function installExtensionsInContainer(
     "Couldn't install extensions batched - will try to install extensions individually...",
   );
 
+  const failures = new Map<string, InstallFailure>();
   for (const extension of extensions) {
     const singleFailure = await installExtensionsWithRetries(
       containerId,
@@ -136,7 +144,11 @@ export async function installExtensionsInContainer(
       [extension],
     );
     if (singleFailure) {
-      warnAboutFailure(extension, singleFailure);
+      failures.set(extension, singleFailure);
     }
+  }
+
+  if (failures.size > 0) {
+    warnAboutFailures(failures);
   }
 }
