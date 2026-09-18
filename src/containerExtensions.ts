@@ -29,15 +29,22 @@ function getGalleryStatus(output: string): number | undefined {
   return status === 429 || status >= 500 ? status : undefined;
 }
 
-async function installExtensionInContainer(
+type InstallFailure = {
+  code: number;
+  galleryStatus: number | undefined;
+  output: string;
+};
+
+async function installExtensionsWithRetries(
   containerId: string,
   user: string,
   binDir: string,
   product: ProductInfo,
-  extension: string,
-) {
+  extensions: string[],
+): Promise<InstallFailure | undefined> {
   const serverBin = `${binDir}/bin/${product.serverApplicationName}`;
-  const params = ["--install-extension", extension];
+  const params = extensions.flatMap((id) => ["--install-extension", id]);
+  const label = extensions.join(", ");
 
   for (let attempt = 0; ; attempt++) {
     const res = await dockerExecShellCapture(
@@ -46,18 +53,18 @@ async function installExtensionInContainer(
       `"${serverBin}" "$@"`,
     );
     if (res.code === 0) {
-      getLog().appendLine(`Successfully installed ${extension}.`);
+      getLog().appendLine(`Successfully installed ${label}.`);
       return;
     }
 
     const output = res.stderr.trim() || res.stdout.trim() || "no output";
     const galleryStatus = getGalleryStatus(output);
-    const host = galleryStatus ? getExtensionGalleryHost() : undefined;
     getLog().appendLine(
-      `Extension install failed for ${extension} (exit code ${res.code}): ${output}`,
+      `Extension install failed for ${label} (exit code ${res.code}): ${output}`,
     );
 
     if (galleryStatus) {
+      const host = getExtensionGalleryHost();
       getLog().appendLine(
         `HTTP ${galleryStatus} came from the extension marketplace${host ? ` (${host}) ` : " "}, not from the server running in the container.`,
       );
@@ -65,12 +72,7 @@ async function installExtensionInContainer(
 
     const delayMs = galleryStatus ? RETRY_DELAYS_MS[attempt] : undefined;
     if (delayMs === undefined) {
-      window.showWarningMessage(
-        galleryStatus
-          ? `Devcontainer extension ${extension} could not be downloaded: the extension marketplace${host ? ` (${host}) ` : " "}kept returning ${galleryStatus}. The container itself is fine - retry the install later.`
-          : `Devcontainer extension ${extension} may not have installed (server CLI exited with code ${res.code}). See the terminal for details.`,
-      );
-      return;
+      return { code: res.code, galleryStatus, output };
     }
 
     getLog().appendLine(
@@ -78,6 +80,15 @@ async function installExtensionInContainer(
     );
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
+}
+
+function warnAboutFailure(label: string, failure: InstallFailure) {
+  const host = failure.galleryStatus ? getExtensionGalleryHost() : undefined;
+  window.showWarningMessage(
+    failure.galleryStatus
+      ? `Devcontainer extension ${label} could not be downloaded: the extension marketplace${host ? ` (${host}) ` : " "}kept returning ${failure.galleryStatus}. The container itself is fine - retry the install later.`
+      : `Devcontainer extension ${label} may not have installed (server CLI exited with code ${failure.code}). See the terminal for details.`,
+  );
 }
 
 export async function installExtensionsInContainer(
@@ -95,14 +106,37 @@ export async function installExtensionsInContainer(
     `Installing ${extensions.length} extension(s) into the container...`,
   );
 
+  const failure = await installExtensionsWithRetries(
+    containerId,
+    user,
+    binDir,
+    product,
+    extensions,
+  );
+  if (!failure) {
+    return;
+  }
+
+  if (extensions.length === 1) {
+    warnAboutFailure(extensions[0]!, failure);
+    return;
+  }
+
   // Multi-extension server CLI calls can fail against Open VSX, while individual installs succeed.
+  getLog().appendLine(
+    "Couldn't install extensions batched - will try to install extensions individually...",
+  );
+
   for (const extension of extensions) {
-    await installExtensionInContainer(
+    const singleFailure = await installExtensionsWithRetries(
       containerId,
       user,
       binDir,
       product,
-      extension,
+      [extension],
     );
+    if (singleFailure) {
+      warnAboutFailure(extension, singleFailure);
+    }
   }
 }
