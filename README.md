@@ -1,5 +1,8 @@
 # Dev Containers OSS
 
+> [!IMPORTANT]
+> **ARCH USERS:** Please consider using VSCodium if you aren't. I'm happy to accept PRs for "Code - OSS" support if the changes needed are minimal. It's also possible that changes needed would have to be made in the [Arch patches](https://gitlab.archlinux.org/archlinux/packaging/packages/code).
+
 For VSCodium and other VS Code-based IDEs that don't ship their own dev containers support. Resembles Microsoft's [official extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) as closely as reasonable (see [differences](#differences-to-the-official-extension) below).
 
 **PLEASE NOTE:** This uses proposed VS Code APIs (just like the official extension), which are subject to change at any time. Which means that any IDE update may cause this extension to stop working.
