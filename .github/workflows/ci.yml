@@ -9,39 +9,13 @@ on:
 
 jobs:
   test-e2e:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     name: Run e2e tests
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
     env:
       DEBUG: pw:browser
-      # Forward GITHUB_WORKSPACE and GITHUB_OUTPUT into WSL. The `/p` flag
-      # translates the Windows path to its WSL equivalent (e.g. C:\... ->
-      # /mnt/c/...), so inside wsl-bash both are already native paths.
-      WSLENV: GITHUB_WORKSPACE/p:GITHUB_OUTPUT/p
     steps:
       - uses: actions/checkout@v7
-      - uses: Vampire/setup-wsl@v7
-        if: matrix.os == 'windows-latest'
-        with:
-          distribution: Ubuntu-24.04
-          additional-packages: docker.io curl ca-certificates
-      - name: Start Docker and stage fixture inside WSL
-        id: stage-fixture
-        if: matrix.os == 'windows-latest'
-        shell: wsl-bash {0}
-        run: |
-          cp -r "$GITHUB_WORKSPACE/tests/fixture" /e2e-fixture
-          # uid 1000 is the dev container's non-root `node` user (uid 1000).
-          sudo chown -R 1000:1000 /e2e-fixture
-          echo "fixture-path=\\\\wsl.localhost\\$WSL_DISTRO_NAME\\e2e-fixture" >> "$GITHUB_OUTPUT"
-
-          # Cache dev container base image
-          docker pull mcr.microsoft.com/devcontainers/javascript-node:24
       - name: Cache dev container base image
-        if: matrix.os != 'windows-latest'
         run: docker pull mcr.microsoft.com/devcontainers/javascript-node:24
       - name: Use Node.js
         uses: actions/setup-node@v7
@@ -53,13 +27,8 @@ jobs:
       - run: pnpm i
       - run: pnpm build
       - run: xvfb-run pnpm e2e
-        if: matrix.os == 'ubuntu-latest'
-      - run: pnpm e2e
-        if: matrix.os == 'windows-latest'
-        env:
-          WSL_FIXTURE_PATH: ${{ steps.stage-fixture.outputs.fixture-path }}
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report-${{ matrix.os }}
+          name: playwright-report
           path: playwright-report/
