@@ -26,13 +26,27 @@ type TestFixtures = {
   workbox: Page;
 };
 
+type TestOptions = {
+  userSettings: Record<string, unknown>;
+};
+
 const isWindows = process.platform === "win32";
 
-export const test = base.extend<TestFixtures>({
-  workbox: async ({ createTempDir }, use) => {
+export const test = base.extend<TestFixtures & TestOptions>({
+  userSettings: [{}, { option: true }],
+  workbox: async ({ createTempDir, userSettings }, use) => {
     const defaultCachePath = await createTempDir();
     const codiumPath = await downloadAndUnzipCodium();
     console.log(`Using VSCodium from ${codiumPath}`);
+
+    const userDataDir = path.join(defaultCachePath, "user-data");
+    await fs.promises.mkdir(path.join(userDataDir, "User"), {
+      recursive: true,
+    });
+    await fs.promises.writeFile(
+      path.join(userDataDir, "User", "settings.json"),
+      JSON.stringify(userSettings),
+    );
 
     const electronApp = await _electron.launch({
       executablePath: codiumPath,
@@ -49,7 +63,7 @@ export const test = base.extend<TestFixtures>({
         "--disable-workspace-trust",
         `--extensionDevelopmentPath=${path.join(__dirname, "..")}`,
         `--extensions-dir=${path.join(defaultCachePath, "extensions")}`,
-        `--user-data-dir=${path.join(defaultCachePath, "user-data")}`,
+        `--user-data-dir=${userDataDir}`,
         isWindows
           ? process.env["WSL_FIXTURE_PATH"]!
           : path.join(__dirname, "fixture"),
@@ -73,10 +87,9 @@ export const test = base.extend<TestFixtures>({
       contentType: "application/zip",
     });
     await electronApp.close();
-    const logPath = path.join(defaultCachePath, "user-data");
-    if (fs.existsSync(logPath)) {
+    if (fs.existsSync(userDataDir)) {
       const logOutputPath = test.info().outputPath("vscode-logs");
-      await fs.promises.cp(logPath, logOutputPath, { recursive: true });
+      await fs.promises.cp(userDataDir, logOutputPath, { recursive: true });
     }
   },
   // oxlint-disable-next-line no-empty-pattern
