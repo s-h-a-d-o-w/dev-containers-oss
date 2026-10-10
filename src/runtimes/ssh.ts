@@ -106,7 +106,7 @@ function getContainerIdFromSshConfig(hostAlias: string): string | undefined {
     return undefined;
   }
   const proxyMatch =
-    /ProxyCommand\s+.*?docker\s+exec\s+.*?\s(?<containerId>\S+)\s+\/usr\/sbin\/sshd/u.exec(
+    /ProxyCommand\s+.*?\sexec\s+.*?\s(?<containerId>\S+)\s+\/usr\/sbin\/sshd/u.exec(
       block,
     );
   return proxyMatch?.groups?.["containerId"];
