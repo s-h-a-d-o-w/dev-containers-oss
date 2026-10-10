@@ -18,6 +18,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import { downloadAndUnzipCodium } from "./downloadAndUnzipCodium.ts";
+import { startScreenRecording } from "./screenRecorder.ts";
 
 export { expect } from "@playwright/test";
 
@@ -47,6 +48,9 @@ export const test = base.extend<TestFixtures & TestOptions>({
       path.join(userDataDir, "User", "settings.json"),
       JSON.stringify(userSettings),
     );
+
+    const videoPath = test.info().outputPath("video.mp4");
+    const stopScreenRecording = startScreenRecording(videoPath);
 
     const electronApp = await _electron.launch({
       executablePath: codiumPath,
@@ -87,6 +91,15 @@ export const test = base.extend<TestFixtures & TestOptions>({
       contentType: "application/zip",
     });
     await electronApp.close();
+
+    if (await stopScreenRecording?.()) {
+      test.info().attachments.push({
+        name: "video",
+        path: videoPath,
+        contentType: "video/mp4",
+      });
+    }
+
     if (fs.existsSync(userDataDir)) {
       const logOutputPath = test.info().outputPath("vscode-logs");
       await fs.promises.cp(userDataDir, logOutputPath, { recursive: true });

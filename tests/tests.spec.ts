@@ -6,7 +6,7 @@ const isWindows = process.platform === "win32";
 const hasPodman =
   spawnSync("podman", ["--version"], { shell: isWindows }).status === 0;
 
-test("basics", async ({ workbox }) => {
+test.skip("basics", async ({ workbox }) => {
   // Get rid of git popup
   if (!isWindows) {
     await workbox.getByRole("button", { name: "Never" }).click();

@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "tags": ["-lintignore"],
-  "ignoreBinaries": ["podman"],
+  "ignoreBinaries": ["ffmpeg", "podman"],
   "ignoreDependencies": ["@devcontainers/cli"],
   "ignore": ["lint-staged.config.mts", "src/agentBridgeContainer.js"]
 }
