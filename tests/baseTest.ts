@@ -18,6 +18,11 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import { downloadAndUnzipCodium } from "./downloadAndUnzipCodium.ts";
+import { startScreenRecording } from "./screenRecorder.ts";
+import {
+  captureTerminals,
+  terminalCaptureKeybindings,
+} from "./terminalCapture.ts";
 
 export { expect } from "@playwright/test";
 
@@ -26,13 +31,38 @@ type TestFixtures = {
   workbox: Page;
 };
 
+type TestOptions = {
+  userSettings: Record<string, unknown>;
+};
+
 const isWindows = process.platform === "win32";
 
-export const test = base.extend<TestFixtures>({
-  workbox: async ({ createTempDir }, use) => {
+export const test = base.extend<TestFixtures & TestOptions>({
+  userSettings: [{}, { option: true }],
+  workbox: async ({ createTempDir, userSettings }, use) => {
     const defaultCachePath = await createTempDir();
     const codiumPath = await downloadAndUnzipCodium();
     console.log(`Using VSCodium from ${codiumPath}`);
+
+    const userDataDir = path.join(defaultCachePath, "user-data");
+    await fs.promises.mkdir(path.join(userDataDir, "User"), {
+      recursive: true,
+    });
+    await fs.promises.writeFile(
+      path.join(userDataDir, "User", "settings.json"),
+      JSON.stringify({
+        // So that failures can be diagnosed based on the full build log.
+        "terminal.integrated.scrollback": 100_000,
+        ...userSettings,
+      }),
+    );
+    await fs.promises.writeFile(
+      path.join(userDataDir, "User", "keybindings.json"),
+      JSON.stringify(terminalCaptureKeybindings),
+    );
+
+    const videoPath = test.info().outputPath("video.mp4");
+    const stopScreenRecording = startScreenRecording(videoPath);
 
     const electronApp = await _electron.launch({
       executablePath: codiumPath,
@@ -49,7 +79,7 @@ export const test = base.extend<TestFixtures>({
         "--disable-workspace-trust",
         `--extensionDevelopmentPath=${path.join(__dirname, "..")}`,
         `--extensions-dir=${path.join(defaultCachePath, "extensions")}`,
-        `--user-data-dir=${path.join(defaultCachePath, "user-data")}`,
+        `--user-data-dir=${userDataDir}`,
         isWindows
           ? process.env["WSL_FIXTURE_PATH"]!
           : path.join(__dirname, "fixture"),
@@ -65,6 +95,15 @@ export const test = base.extend<TestFixtures>({
 
     await use(workbox);
 
+    const { expectedStatus, status } = test.info();
+    if (status !== expectedStatus) {
+      const content = await captureTerminals(workbox, electronApp);
+      await test.info().attach(`terminal`, {
+        body: content,
+        contentType: "text/plain",
+      });
+    }
+
     const tracePath = test.info().outputPath("trace.zip");
     await workbox.context().tracing.stop({ path: tracePath });
     test.info().attachments.push({
@@ -73,10 +112,18 @@ export const test = base.extend<TestFixtures>({
       contentType: "application/zip",
     });
     await electronApp.close();
-    const logPath = path.join(defaultCachePath, "user-data");
-    if (fs.existsSync(logPath)) {
+
+    if (await stopScreenRecording?.()) {
+      test.info().attachments.push({
+        name: "video",
+        path: videoPath,
+        contentType: "video/mp4",
+      });
+    }
+
+    if (fs.existsSync(userDataDir)) {
       const logOutputPath = test.info().outputPath("vscode-logs");
-      await fs.promises.cp(logPath, logOutputPath, { recursive: true });
+      await fs.promises.cp(userDataDir, logOutputPath, { recursive: true });
     }
   },
   // oxlint-disable-next-line no-empty-pattern

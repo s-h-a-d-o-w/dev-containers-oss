@@ -1,3 +1,5 @@
+import { getDockerPath } from "./utilities.ts";
+
 export type WslLocation = { distro: string; linuxPath: string };
 
 export function parseWslInfo(fsPath: string): WslLocation | undefined {
@@ -24,16 +26,20 @@ export function buildDockerCommand(argv: string[]): {
   command: string;
   args: string[];
 } {
+  const dockerPath = getDockerPath();
   if (currentDistro) {
     return {
       command: "wsl.exe",
-      args: ["-d", currentDistro, "docker", ...argv],
+      args: ["-d", currentDistro, dockerPath, ...argv],
     };
   }
-  return { command: "docker", args: argv };
+  return { command: dockerPath, args: argv };
 }
 
 // For embedding in an SSH ProxyCommand (which is parsed and executed by SSH, not spawned by us).
 export function buildDockerCommandLinePrefix(): string {
-  return currentDistro ? `wsl.exe -d ${currentDistro} docker` : "docker";
+  const dockerPath = getDockerPath();
+  return currentDistro
+    ? `wsl.exe -d ${currentDistro} ${dockerPath}`
+    : dockerPath;
 }

@@ -89,6 +89,16 @@
           "type": "boolean",
           "default": true,
           "description": "Copy the host's ~/.gitconfig into the devcontainer, so git inside the container uses the same identity (user.name/email) and settings as the host."
+        },
+        "dev-containers-oss.dockerPath": {
+          "type": "string",
+          "default": "docker",
+          "description": "Path or name of the Docker-compatible CLI to use (e.g. 'podman')."
+        },
+        "dev-containers-oss.dockerComposePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path or name of the Docker Compose-compatible CLI to use (e.g. 'podman-compose'). Leave empty to let the dev container CLI decide."
         }
       }
     },

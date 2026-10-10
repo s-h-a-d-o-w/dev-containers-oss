@@ -25,6 +25,9 @@ jobs:
         with:
           cache: true
       - run: pnpm i
+      # Used to record the Xvfb display at 60 fps (Playwright's own video
+      # recording is hardcoded to 25 fps).
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm build
       - run: xvfb-run pnpm e2e
       - uses: actions/upload-artifact@v7

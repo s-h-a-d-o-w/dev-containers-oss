@@ -21,3 +21,21 @@ export function getHostAlias(wsFsPath: string): string {
   const slug = makeWorkspaceSlug(wsFsPath);
   return `${EXTENSION_ID}-${slug}`;
 }
+
+// Docker-compatible CLIs (podman, nerdctl, ...) are drop-in replacements for the `docker`
+// and `docker-compose` binaries, so every invocation goes through these two settings.
+function getPathSetting(key: string): string | undefined {
+  const value = workspace
+    .getConfiguration(EXTENSION_ID)
+    .get<string>(key)
+    ?.trim();
+  return value === "" ? undefined : value;
+}
+
+export function getDockerPath(): string {
+  return getPathSetting("dockerPath") ?? "docker";
+}
+
+export function getDockerComposePath(): string | undefined {
+  return getPathSetting("dockerComposePath");
+}

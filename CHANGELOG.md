@@ -1,5 +1,9 @@
 (Only changes that are likely meaningful for users are listed here.)
 
+## Unreleased
+
+- Added `dev-containers-oss.dockerPath` and `dev-containers-oss.dockerComposePath` settings, so Docker-compatible CLIs like podman can be used.
+
 ## v1.2.8
 
 - Extension install problem addressed in 1.2.3 was temporary. Individual extension installation is now used as a fallback going forward.

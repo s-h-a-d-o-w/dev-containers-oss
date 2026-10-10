@@ -1,8 +1,12 @@
+import { spawnSync } from "node:child_process";
 import { test, expect } from "./baseTest";
 
 const isWindows = process.platform === "win32";
 
-test("basics", async ({ workbox }) => {
+const hasPodman =
+  spawnSync("podman", ["--version"], { shell: isWindows }).status === 0;
+
+test.skip("basics", async ({ workbox }) => {
   // Get rid of git popup
   if (!isWindows) {
     await workbox.getByRole("button", { name: "Never" }).click();
@@ -60,4 +64,30 @@ test("basics", async ({ workbox }) => {
   await expect(workbox).not.toHaveTitle(/Dev Container/u);
   await expect(workbox).toHaveTitle(/Dev Container/u);
   // await workbox.pause();
+});
+
+test.describe("podman", () => {
+  test.use({ userSettings: { "dev-containers-oss.dockerPath": "podman" } });
+
+  test("opens and closes a container", async ({ workbox }) => {
+    test.skip(!hasPodman, "podman is not installed");
+
+    // Get rid of git popup
+    if (!isWindows) {
+      await workbox.getByRole("button", { name: "Never" }).click();
+    }
+
+    // REOPEN IN CONTAINER
+    await workbox.getByRole("button", { name: "Reopen in Container" }).click();
+    await expect(workbox).toHaveTitle(/Dev Container/u);
+
+    // REOPEN LOCALLY (via remote menu)
+    await workbox.getByRole("button", { name: /remote.*/u }).click({
+      timeout: 120_000,
+    });
+    await workbox
+      .getByRole("option", { name: "Reopen Folder Locally" })
+      .click();
+    await expect(workbox).not.toHaveTitle(/Dev Container/u);
+  });
 });

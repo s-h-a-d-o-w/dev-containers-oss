@@ -5,6 +5,7 @@ import { runCommandCapture } from "./runCommands.ts";
 import { getLog } from "./log.ts";
 import { EXTENSION_ID } from "./constants.ts";
 import { parseWslInfo, setWslDistroFromPath } from "./wsl.ts";
+import { getDockerComposePath, getDockerPath } from "./utilities.ts";
 import type {
   BuildOptions,
   DevcontainerCustomizations,
@@ -136,6 +137,19 @@ function parseDevcontainerUpResult(output: string) {
   return findResultObject(output, "outcome");
 }
 
+// Point the CLI at the configured Docker-compatible binaries so it shells out to e.g.
+// podman instead of docker.
+function dockerPathArgs(): string[] {
+  const composePath = getDockerComposePath();
+  return [
+    "--docker-path",
+    getDockerPath(),
+    ...(composePath === undefined
+      ? []
+      : ["--docker-compose-path", composePath]),
+  ];
+}
+
 export async function devcontainerUp(
   ctx: ExtensionContext,
   wsFsPath: string,
@@ -146,7 +160,7 @@ export async function devcontainerUp(
   // this process routes to the distro that hosts the container (or to the host if none).
   setWslDistroFromPath(wsFsPath);
 
-  const args = ["up", "--workspace-folder", wsFsPath];
+  const args = ["up", "--workspace-folder", wsFsPath, ...dockerPathArgs()];
   if (options?.noCache) {
     args.push("--build-no-cache");
   }
@@ -204,6 +218,7 @@ export async function readMergedCustomizations(
         "--include-merged-configuration",
         "--workspace-folder",
         wsFsPath,
+        ...dockerPathArgs(),
       ],
       { cwd: wsFsPath },
     );
