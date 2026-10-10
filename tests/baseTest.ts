@@ -19,6 +19,10 @@ import os from "node:os";
 import fs from "node:fs";
 import { downloadAndUnzipCodium } from "./downloadAndUnzipCodium.ts";
 import { startScreenRecording } from "./screenRecorder.ts";
+import {
+  captureTerminals,
+  terminalCaptureKeybindings,
+} from "./terminalCapture.ts";
 
 export { expect } from "@playwright/test";
 
@@ -46,7 +50,15 @@ export const test = base.extend<TestFixtures & TestOptions>({
     });
     await fs.promises.writeFile(
       path.join(userDataDir, "User", "settings.json"),
-      JSON.stringify(userSettings),
+      JSON.stringify({
+        // So that failures can be diagnosed based on the full build log.
+        "terminal.integrated.scrollback": 100_000,
+        ...userSettings,
+      }),
+    );
+    await fs.promises.writeFile(
+      path.join(userDataDir, "User", "keybindings.json"),
+      JSON.stringify(terminalCaptureKeybindings),
     );
 
     const videoPath = test.info().outputPath("video.mp4");
@@ -82,6 +94,15 @@ export const test = base.extend<TestFixtures & TestOptions>({
     });
 
     await use(workbox);
+
+    const { expectedStatus, status } = test.info();
+    if (status !== expectedStatus) {
+      const content = await captureTerminals(workbox, electronApp);
+      await test.info().attach(`terminal`, {
+        body: content,
+        contentType: "text/plain",
+      });
+    }
 
     const tracePath = test.info().outputPath("trace.zip");
     await workbox.context().tracing.stop({ path: tracePath });
