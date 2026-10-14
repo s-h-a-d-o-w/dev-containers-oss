@@ -96,9 +96,21 @@ export function activate(context: ExtensionContext) {
 
   // Register the native remote resolver so folders can be opened directly inside the
   // container over a docker-exec tunnel (no SSH), via the `dev-containers-oss+` authority.
-  const nativeAvailable = isNativeRuntimeAvailable();
+  let nativeAvailable = isNativeRuntimeAvailable();
   if (nativeAvailable) {
-    context.subscriptions.push(...registerRemoteResolver(context));
+    try {
+      // Proposed APIs can be exposed by the host but still denied for this extension.
+      context.subscriptions.push(...registerRemoteResolver(context));
+    } catch (error: unknown) {
+      nativeAvailable = false;
+      const message = error instanceof Error ? error.message : String(error);
+      getLog().appendLine(
+        `Native container connection unavailable; falling back to SSH: ${message}`,
+      );
+      getLog().appendLine(
+        `To enable native connections, restart your IDE with --enable-proposed-api ${EXTENSION_ID}.`,
+      );
+    }
   }
 
   async function hasDevcontainerConfig(ws: WorkspaceFolder | undefined) {
