@@ -68,7 +68,7 @@ WSL file system with devcontainer: ~20s
 
 ### SSH fallback
 
-Is automatically used if your IDE version doesn't offer the necessary APIs for "native" dev container connection.
+Is automatically used if your IDE version doesn't offer the necessary APIs for "native" dev container connection, or if access to those APIs is denied.
 
 Requires the extension `jeanp413.open-remote-ssh`. You will be prompted for installation if you don't have it already installed.
 
@@ -76,6 +76,7 @@ Also, a local SSH public key is needed (e.g., `~/.ssh/id_ed25519.pub` or `~/.ssh
 
 ## Troubleshooting
 
+- Proposed API access: If the log reports `CANNOT use API proposal: resolvers`, fully quit VSCodium and launch it with `codium --enable-proposed-api s-h-a-d-o-w.dev-containers-oss`. To persist this, run **Preferences: Configure Runtime Arguments** from the Command Palette and add `"enable-proposed-api": ["s-h-a-d-o-w.dev-containers-oss"]` to `argv.json`, preserving existing entries. Fully quit and restart VSCodium for the change to take effect. Without access, the extension uses the SSH fallback.
 - Docker permissions: Ensure your user can run Docker commands without sudo, and that `docker` is available globally.
 
 ## Acknowledgements
