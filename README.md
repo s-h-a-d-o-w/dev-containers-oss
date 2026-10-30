@@ -20,6 +20,13 @@ Don't forget to make your SSH key available if you want to commit through the UI
 
 Put your projects on the WSL file system. and then just open them from there. No WSL extension needed.
 
+Projects already opened in a Remote-WSL window also support **Reopen Folder in Container**.
+The extension runs on the Windows host and uses the workspace's WSL distro for the
+Dev Container CLI and Docker. Docker must be available inside that distro (through
+Docker Engine or Docker Desktop's WSL integration), along with `curl` for the CLI
+installation. **Reopen Folder Locally** returns to WSL when the container was
+opened from a Remote-WSL workspace.
+
 Native file system actually works too but you would have a _really_ bad time with it. Here are some numbers from running `pnpm install` on a project:
 
 ```

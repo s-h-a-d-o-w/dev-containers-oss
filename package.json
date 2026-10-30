@@ -11,6 +11,7 @@
   "publisher": "s-h-a-d-o-w",
   "main": "./dist/extension.js",
   "scripts": {
+    "test:unit": "node --test tests/wsl.unit.ts",
     "e2e": "playwright test",
     "dev": "node esbuild.mts --watch",
     "lint": "oxlint",
@@ -100,7 +101,7 @@
         },
         {
           "command": "dev-containers-oss.openFolderInDevcontainer",
-          "when": "!remoteName && dev-containers-oss.hasConfig"
+          "when": "(!remoteName || remoteName == wsl) && dev-containers-oss.hasConfig"
         },
         {
           "command": "dev-containers-oss.rebuildAndOpen",
@@ -112,7 +113,7 @@
         },
         {
           "command": "dev-containers-oss.reopenFolderLocally",
-          "when": "remoteName"
+          "when": "dev-containers-oss.inContainer"
         },
         {
           "command": "dev-containers-oss.resetReopenPrompt",
@@ -128,7 +129,7 @@
         {
           "command": "dev-containers-oss.openFolderInDevcontainer",
           "group": "remote_30_devcontainer_3local@2",
-          "when": "!remoteName && dev-containers-oss.hasConfig"
+          "when": "(!remoteName || remoteName == wsl) && dev-containers-oss.hasConfig"
         },
         {
           "command": "dev-containers-oss.rebuildAndOpen",
@@ -138,7 +139,7 @@
         {
           "command": "dev-containers-oss.reopenFolderLocally",
           "group": "remote_30_devcontainer_3local@5",
-          "when": "remoteName"
+          "when": "dev-containers-oss.inContainer"
         },
         {
           "command": "dev-containers-oss.resetReopenPrompt",

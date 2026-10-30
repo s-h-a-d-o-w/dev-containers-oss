@@ -1,5 +1,19 @@
 export type WslLocation = { distro: string; linuxPath: string };
 
+// A Remote-WSL workspace exposes a Linux path, but this UI extension executes on
+// Windows. Convert it to the same host path used when opening WSL folders directly.
+export function getWslHostPath(
+  authority: string,
+  linuxPath: string,
+): string | undefined {
+  const prefix = "wsl+";
+  if (!authority.startsWith(prefix) || authority.length === prefix.length) {
+    return undefined;
+  }
+  const distro = authority.slice(prefix.length);
+  return `\\\\wsl.localhost\\${distro}${linuxPath.replaceAll("/", "\\")}`;
+}
+
 export function parseWslInfo(fsPath: string): WslLocation | undefined {
   const match =
     /^\\\\wsl(?:\.localhost|\$)\\(?<distro>[^\\]+)\\(?<rest>.*)$/u.exec(fsPath);
