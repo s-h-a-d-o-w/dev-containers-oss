@@ -1,9 +1,3 @@
-Run the WSL path-routing unit tests without launching an editor:
-
-```sh
-node --test tests/wsl.unit.ts
-```
-
 Tests may fail locally with:
 
 ```
