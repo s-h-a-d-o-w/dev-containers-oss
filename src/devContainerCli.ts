@@ -58,13 +58,41 @@ function buildWslCliInvocation(
   };
 }
 
-function runCliCapture(
+async function runCliCapture(
   ctx: ExtensionContext,
   args: string[],
   { cwd, quiet = true }: { cwd?: string; quiet?: boolean },
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   const wslInfo = cwd ? parseWslInfo(cwd) : undefined;
   if (wslInfo) {
+    const { code, stdout } = await runCommandCapture(
+      "wsl.exe",
+      ["-d", wslInfo.distro, "sh", "-s"],
+      {
+        quiet: true,
+        input: [
+          "for tool in docker curl; do",
+          '  if ! command -v "$tool" >/dev/null 2>&1; then',
+          String.raw`    printf "%s\n" "$tool"`,
+          "  fi",
+          "done",
+        ].join("\n"),
+      },
+    );
+    if (code !== 0) {
+      throw new Error(
+        "Could not check Docker and curl availability in your WSL installation.",
+      );
+    }
+    const missing = stdout.trim().split(/\s+/u).filter(Boolean);
+    if (missing.length > 0) {
+      const tools = missing
+        .map((tool) => (tool === "docker" ? "Docker" : tool))
+        .join(" and ");
+      throw new Error(
+        `${tools} ${missing.length > 1 ? "aren't" : "isn't"} available in your WSL installation.`,
+      );
+    }
     // Normalize any WSL UNC path in the arguments (e.g. the --workspace-folder value) to a
     // native Linux path the in-distro CLI understands.
     const wslArgs = args.map((arg) => parseWslInfo(arg)?.linuxPath ?? arg);

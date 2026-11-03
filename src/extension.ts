@@ -38,8 +38,10 @@ import {
   promptReopenInContainerIfConfigured,
   promptSshFallbackInstructions,
 } from "./prompts.ts";
+import { getWslHostPath } from "./wsl.ts";
 
 const PENDING_REOPEN_KEY = `${EXTENSION_ID}.pendingReopen`;
+const WSL_WORKSPACE_KEY = `${EXTENSION_ID}.wslWorkspace`;
 
 type PendingReopen = {
   localFolder: string;
@@ -67,6 +69,31 @@ function getWorkspaceOrThrow(): WorkspaceFolder {
     throw new Error("No folder open");
   }
   return workspaceFolder;
+}
+
+function getHostWorkspacePath(ws: WorkspaceFolder): string {
+  if (ws.uri.scheme === "vscode-remote" && env.remoteName === "wsl") {
+    const hostPath = getWslHostPath(ws.uri.authority, ws.uri.path);
+    if (!hostPath || process.platform !== "win32") {
+      throw new Error(
+        "Could not resolve the WSL workspace on the Windows host.",
+      );
+    }
+    return hostPath;
+  }
+  return ws.uri.fsPath;
+}
+
+// Return WSL projects to their WSL window, rather than opening their UNC path
+// as a local Windows workspace. The host path remains stable for rebuild markers.
+function getHostWorkspaceUri(
+  context: ExtensionContext,
+  localFolder: string,
+): Uri {
+  const originalUri = context.globalState.get<string>(
+    `${WSL_WORKSPACE_KEY}.${localFolder}`,
+  );
+  return originalUri ? Uri.parse(originalUri) : Uri.file(localFolder);
 }
 
 // E.g. vscodium now has native support but that might not be the case for every flavor of VS Code.
@@ -117,6 +144,15 @@ export function activate(context: ExtensionContext) {
   }
 
   // Initialize context
+  const initialHostAlias = getConnectedHostAlias();
+  void commands.executeCommand(
+    "setContext",
+    `${EXTENSION_ID}.inContainer`,
+    Boolean(
+      getConnectedContainerLocalFolder() ??
+      initialHostAlias?.startsWith(`${EXTENSION_ID}-`),
+    ),
+  );
   void updateDevcontainerContext();
 
   async function promptRebuildOnConfigChange(changedFile: string) {
@@ -197,12 +233,15 @@ export function activate(context: ExtensionContext) {
       } satisfies PendingReopen);
       await commands.executeCommand(
         "vscode.openFolder",
-        Uri.file(localFolder),
+        getHostWorkspaceUri(context, localFolder),
         false,
       );
       return;
     }
-    await openFolderWithSsh(getWorkspaceOrThrow().uri.fsPath, buildOptions);
+    await openFolderWithSsh(
+      getHostWorkspacePath(getWorkspaceOrThrow()),
+      buildOptions,
+    );
   }
 
   async function useNative(buildOptions: BuildOptions): Promise<void> {
@@ -219,14 +258,14 @@ export function activate(context: ExtensionContext) {
       } satisfies PendingReopen);
       await commands.executeCommand(
         "vscode.openFolder",
-        Uri.file(connectedLocalFolder),
+        getHostWorkspaceUri(context, connectedLocalFolder),
         false,
       );
       return;
     }
     await nativeRuntime(
       context,
-      getWorkspaceOrThrow().uri.fsPath,
+      getHostWorkspacePath(getWorkspaceOrThrow()),
       buildOptions,
     );
   }
@@ -235,6 +274,14 @@ export function activate(context: ExtensionContext) {
   // stay on whichever runtime the current window uses (its authority tells us which). For
   // a fresh open from a local window we prefer the native runtime and fall back to SSH.
   async function openDevcontainer(buildOptions: BuildOptions): Promise<void> {
+    if (!env.remoteName || env.remoteName === "wsl") {
+      const ws = getWorkspaceOrThrow();
+      const localFolder = getHostWorkspacePath(ws);
+      await context.globalState.update(
+        `${WSL_WORKSPACE_KEY}.${localFolder}`,
+        env.remoteName === "wsl" ? ws.uri.toString() : undefined,
+      );
+    }
     if (getConnectedHostAlias()) {
       await useSsh(buildOptions);
       return;
@@ -258,13 +305,13 @@ export function activate(context: ExtensionContext) {
     if (!pending) {
       return;
     }
-    if (env.remoteName) {
+    if (env.remoteName && env.remoteName !== "wsl") {
       return;
     }
     const workspaceFolder = getWorkspaceFolder();
     if (
       !workspaceFolder ||
-      workspaceFolder.uri.fsPath !== pending.localFolder
+      getHostWorkspacePath(workspaceFolder) !== pending.localFolder
     ) {
       return;
     }
@@ -341,7 +388,7 @@ export function activate(context: ExtensionContext) {
         }
         await commands.executeCommand(
           "vscode.openFolder",
-          Uri.file(localFolder),
+          getHostWorkspaceUri(context, localFolder),
           false,
         );
       },

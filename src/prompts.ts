@@ -10,7 +10,7 @@ export async function promptReopenInContainerIfConfigured(
   isReopening: boolean,
 ) {
   if (
-    env.remoteName ||
+    (env.remoteName && env.remoteName !== "wsl") ||
     isReopening ||
     context.workspaceState.get<boolean>(DONT_PROMPT_REOPEN_KEY) ||
     !(await hasDevcontainerConfig(getWorkspaceFolder()))
