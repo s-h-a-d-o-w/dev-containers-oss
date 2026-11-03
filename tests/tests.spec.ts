@@ -9,7 +9,12 @@ for (const release of Object.keys(releases) as (keyof typeof releases)[]) {
 
     // Get rid of git popup
     if (!isWindows) {
-      await workbox.getByRole("button", { name: "Never" }).click();
+      await workbox
+        .getByRole("button", { name: "Never" })
+        .click({ timeout: 5_000 })
+        .catch(() => {
+          // Popup may not appear
+        });
     }
 
     // REOPEN IN CONTAINER
