@@ -5,5 +5,6 @@ export default {
   "**/*": [
     "pnpm oxfmt --no-error-on-unmatched-pattern --check",
     () => "pnpm knip",
+    () => "pnpm package",
   ],
 } satisfies Configuration;
