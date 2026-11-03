@@ -48,7 +48,7 @@ for (const release of Object.keys(releases) as (keyof typeof releases)[]) {
       try {
         await workbox
           .getByRole("option", { name: "Container Configuration File" })
-          .click({ timeout: 1000 });
+          .click({ timeout: 1_000 });
         await expect(workbox).toHaveTitle(/devcontainer.json/u);
       } catch (error) {
         // Close the command palette before the next attempt

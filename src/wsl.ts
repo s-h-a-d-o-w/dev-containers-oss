@@ -1,4 +1,4 @@
-import { env, Uri, WorkspaceFolder, type ExtensionContext } from "vscode";
+import { env, Uri, type WorkspaceFolder, type ExtensionContext } from "vscode";
 import { EXTENSION_ID } from "./constants";
 
 export type WslLocation = { distro: string; linuxPath: string };

@@ -19,8 +19,8 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import {
+  type ReleaseKey,
   downloadAndUnzipCodium,
-  ReleaseKey,
 } from "./downloadAndUnzipCodium.ts";
 
 export { expect } from "@playwright/test";
@@ -99,6 +99,7 @@ export const test = base.extend<TestFixtures>({
     "--enable-proposed-api=s-h-a-d-o-w.dev-containers-oss",
   ]),
 
+  // playwright requires an object for fixtures, even if unused
   // oxlint-disable-next-line no-empty-pattern
   createTempDir: async ({}, use) => {
     const tempDirs: string[] = [];

@@ -2,13 +2,13 @@ import path from "node:path";
 import {
   commands,
   env,
-  type ExtensionContext,
   ExtensionMode,
   ManagedResolvedAuthority,
   RelativePattern,
-  Uri,
   window,
   workspace,
+  type ExtensionContext,
+  type Uri,
   type WorkspaceFolder,
 } from "vscode";
 import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";

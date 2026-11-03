@@ -32,14 +32,13 @@ let buf = Buffer.alloc(0);
  * @param {number} id
  * @param {Buffer} [payload]
  */
-// oxlint-disable-next-line no-implicit-globals
-function send(type, id, payload) {
+const send = (type, id, payload) => {
   const header = Buffer.alloc(9);
   header.writeUInt8(type, 0);
   header.writeUInt32BE(id, 1);
   header.writeUInt32BE(payload ? payload.length : 0, 5);
   process.stdout.write(payload ? Buffer.concat([header, payload]) : header);
-}
+};
 
 process.stdin.on("data", (data) => {
   const chunk = typeof data === "string" ? Buffer.from(data) : data;

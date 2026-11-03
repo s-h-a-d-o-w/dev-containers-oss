@@ -4,7 +4,7 @@ import { readProductJson } from "./hostInfo.ts";
 import { getLog } from "./log.ts";
 import type { ProductInfo } from "./types/types.ts";
 
-const RETRY_DELAYS_MS = [2000, 5000, 10_000];
+const RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
 
 // The server CLI reports marketplace HTTP failures as a bare "Server returned <status>",
 // which reads like the container server failed. It is actually the extension gallery from
@@ -74,7 +74,7 @@ async function installExtensionsWithRetries(
     }
 
     getLog().appendLine(
-      `Retrying extension install in ${delayMs / 1000}s (attempt ${attempt + 2} of ${RETRY_DELAYS_MS.length + 1})...`,
+      `Retrying extension install in ${delayMs / 1_000}s (attempt ${attempt + 2} of ${RETRY_DELAYS_MS.length + 1})...`,
     );
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }

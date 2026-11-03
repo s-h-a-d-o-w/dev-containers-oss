@@ -22,22 +22,22 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@devcontainers/cli": "^0.87.0"
+    "@devcontainers/cli": "^0.90.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
-    "@s-h-a-d-o-w/oxlint-config": "^1.1.2",
-    "@types/node": "^24.13.3",
-    "@types/vscode": "^1.125.0",
-    "@vscode/vsce": "^3.9.2",
-    "esbuild": "^0.28.1",
+    "@playwright/test": "^1.64.1",
+    "@s-h-a-d-o-w/oxlint-config": "^1.11.0",
+    "@types/node": "^26.6.6",
+    "@types/vscode": "^1.144.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2",
     "husky": "^9.1.7",
-    "knip": "^6.29.0",
-    "ky": "^2.0.2",
-    "lint-staged": "^17.0.8",
-    "oxfmt": "^0.59.0",
-    "oxlint": "^1.74.0",
-    "oxlint-tsgolint": "^0.25.0",
+    "knip": "^6.44.1",
+    "ky": "^2.2.0",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },
@@ -182,5 +182,5 @@
     "README.md",
     "LICENSE"
   ],
-  "packageManager": "pnpm@12.4.1+sha512.2e81e399d73fe8390dab25e06aa788ab7a5908248d2f5a370f82b481147a6a7a367bf8048f9a6fdb6460f21a66f0542dedb8b94ca2c8723596741920b1656d4c"
+  "packageManager": "pnpm@12.16.1+sha512.091d1dee7927575661b25dab3c2ae31cafc1c54d6b71ed6a6600cf0c1cb10434a447eae14015f1b23e2e6bedeed79df94a932e2164d2832280dce3fb32f656d1"
 }

@@ -5,8 +5,8 @@ import { runCommandCapture } from "./runCommands.ts";
 import { devcontainerUp } from "./devContainerCli.ts";
 
 // Only the VS Code API surface used by these tests is available outside the editor.
-// oxlint-disable-next-line vitest/prefer-import-in-mock
-vi.mock("vscode", () => ({
+// @ts-expect-error No full mock
+vi.mock(import("vscode"), () => ({
   env: {},
   window: {},
   Uri: {
@@ -50,9 +50,7 @@ describe("wsl CLI dependencies", () => {
       await expect(devcontainerUp(context, workspacePath)).rejects.toThrow(
         message,
       );
-      // prefer-called-times requires this form, conflicting with prefer-called-once.
-      // oxlint-disable-next-line vitest/prefer-called-once
-      expect(runCommandCapture).toHaveBeenCalledTimes(1);
+      expect(runCommandCapture).toHaveBeenCalledOnce();
     },
   );
 
