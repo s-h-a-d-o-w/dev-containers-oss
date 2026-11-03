@@ -18,9 +18,9 @@ Don't forget to make your SSH key available if you want to commit through the UI
 
 ### Windows
 
-Put your projects on the WSL file system. and then just open them from there. No WSL extension needed.
+Put your projects on the WSL file system and then just open them from there. No WSL extension needed. (_But_ this is extension is also compatible with opening devcontainers while connected to WSL remotes.)
 
-Native file system actually works too but you would have a _really_ bad time with it. Here are some numbers from running `pnpm install` on a project:
+Native file system obviously works too but you would have a _really_ bad time with it. Here are some numbers from running `pnpm install` on a project:
 
 ```
 Native file system WITHOUT dev container: ~29s
