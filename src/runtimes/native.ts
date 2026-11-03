@@ -50,6 +50,7 @@ import {
   setTunnelTarget,
   showCandidatePort,
 } from "../portForwarding.ts";
+import { getWorkspaceFolder } from "../utilities.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(json)>`, where the JSON payload mirrors the shape emitted by the
@@ -57,7 +58,7 @@ import {
 // host path, docker mode and config file. The container a window belongs to can be recovered
 // purely from the authority string (no external state needed). Must be `dev-container` for
 // compatibility with other tools that check for this authority.
-export const AUTHORITY_PREFIX = "dev-container";
+const AUTHORITY_PREFIX = "dev-container";
 
 type AuthorityPayload = {
   hostPath: string;
@@ -98,7 +99,7 @@ function encodeAuthority(localFolder: string) {
   return `${AUTHORITY_PREFIX}+${Buffer.from(json, "utf8").toString("hex")}`;
 }
 
-export function decodeLocalFolder(authority: string): string {
+function decodeLocalFolder(authority: string): string {
   const plus = authority.indexOf("+");
   const hex = plus !== -1 ? authority.slice(plus + 1) : authority;
   const decoded = Buffer.from(hex, "hex").toString("utf8");
@@ -635,6 +636,19 @@ async function prepareContainerConnection(
   return new ManagedResolvedAuthority(
     makeManagedConnection(up.containerId, user, home, product, port),
   );
+}
+
+// The host-side folder of the native (managed) container this window is connected to, if
+// any. The local path is encoded straight into the authority, so no lookup is needed.
+export function getConnectedContainerLocalFolder(): string | undefined {
+  if (!env.remoteName) {
+    return undefined;
+  }
+  const authority = getWorkspaceFolder()?.uri.authority ?? "";
+  if (!authority.startsWith(`${AUTHORITY_PREFIX}+`)) {
+    return undefined;
+  }
+  return decodeLocalFolder(authority);
 }
 
 export function registerRemoteResolver(

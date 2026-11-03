@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildDockerCommand,
   getWslHostPath,
   parseWslInfo,
   setWslDistroFromPath,
 } from "./wsl.ts";
+
+vi.mock(import("vscode"), () => ({}));
 
 describe("wsl path routing", () => {
   afterEach(() => {

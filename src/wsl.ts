@@ -1,4 +1,9 @@
+import { env, Uri, WorkspaceFolder, type ExtensionContext } from "vscode";
+import { EXTENSION_ID } from "./constants";
+
 export type WslLocation = { distro: string; linuxPath: string };
+
+export const WSL_WORKSPACE_KEY = `${EXTENSION_ID}.wslWorkspace`;
 
 // A Remote-WSL workspace exposes a Linux path, but this UI extension executes on
 // Windows. Convert it to the same host path used when opening WSL folders directly.
@@ -12,6 +17,31 @@ export function getWslHostPath(
   }
   const distro = authority.slice(prefix.length);
   return `\\\\wsl.localhost\\${distro}${linuxPath.replaceAll("/", "\\")}`;
+}
+
+export function maybeGetHostWorkspacePath(ws: WorkspaceFolder): string {
+  if (ws.uri.scheme === "vscode-remote" && env.remoteName === "wsl") {
+    const hostPath = getWslHostPath(ws.uri.authority, ws.uri.path);
+    if (!hostPath || process.platform !== "win32") {
+      throw new Error(
+        "Could not resolve the WSL workspace on the Windows host.",
+      );
+    }
+    return hostPath;
+  }
+  return ws.uri.fsPath;
+}
+
+// Return WSL projects to their WSL window, rather than opening their UNC path
+// as a local Windows workspace. The host path remains stable for rebuild markers.
+export function maybeGetHostWorkspaceUri(
+  context: ExtensionContext,
+  localFolder: string,
+): Uri {
+  const wslUri = context.globalState.get<string>(
+    `${WSL_WORKSPACE_KEY}.${localFolder}`,
+  );
+  return wslUri ? Uri.parse(wslUri) : Uri.file(localFolder);
 }
 
 export function parseWslInfo(fsPath: string): WslLocation | undefined {
