@@ -1,5 +1,9 @@
 (Only changes that are likely meaningful for users are listed here.)
 
+## v1.4.0
+
+- Add option for disabling creation/use of lockfiles.
+
 ## v1.3.0
 
 - Support reopening in a devcontainer while connected to a WSL remote.
