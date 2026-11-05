@@ -1,4 +1,4 @@
-import { env, type ExtensionContext, Uri, window } from "vscode";
+import { env, type ExtensionContext, Uri, window, workspace } from "vscode";
 import fs from "node:fs";
 import path from "node:path";
 import { runCommandCapture } from "./runCommands.ts";
@@ -175,6 +175,11 @@ export async function devcontainerUp(
   setWslDistroFromPath(wsFsPath);
 
   const args = ["up", "--workspace-folder", wsFsPath];
+  if (
+    workspace.getConfiguration(EXTENSION_ID).get<boolean>("noLockfile", false)
+  ) {
+    args.push("--no-lockfile");
+  }
   if (options?.noCache) {
     args.push("--build-no-cache");
   }

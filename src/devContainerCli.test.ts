@@ -9,6 +9,11 @@ import { devcontainerUp } from "./devContainerCli.ts";
 vi.mock(import("vscode"), () => ({
   env: {},
   window: {},
+  workspace: {
+    getConfiguration: () => ({
+      get: <T>(_key: string, defaultValue: T) => defaultValue,
+    }),
+  },
   Uri: {
     joinPath: (uri: Uri, ...parts: string[]) => ({
       fsPath: path.join(uri.fsPath, ...parts),

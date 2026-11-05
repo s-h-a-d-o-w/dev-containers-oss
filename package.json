@@ -91,6 +91,11 @@
           "type": "boolean",
           "default": true,
           "description": "Copy the host's ~/.gitconfig into the devcontainer, so git inside the container uses the same identity (user.name/email) and settings as the host."
+        },
+        "dev-containers-oss.noLockfile": {
+          "type": "boolean",
+          "default": false,
+          "description": "Don't generate or use devcontainer-lock.json."
         }
       }
     },
