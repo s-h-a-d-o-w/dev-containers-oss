@@ -222,6 +222,43 @@ function isEntryObject(entry: unknown): entry is Record<string, unknown> {
   return typeof entry === "object" && entry !== null;
 }
 
+// This is important for debugging when not using lockfiles.
+function logFeatureVersions(featuresConfiguration: unknown) {
+  if (
+    !isEntryObject(featuresConfiguration) ||
+    !Array.isArray(featuresConfiguration["featureSets"])
+  ) {
+    return;
+  }
+
+  const lines: string[] = [];
+  for (const featureSet of featuresConfiguration["featureSets"]) {
+    if (!isEntryObject(featureSet) || !Array.isArray(featureSet["features"])) {
+      continue;
+    }
+    const { sourceInformation } = featureSet;
+    const userFeatureId = isEntryObject(sourceInformation)
+      ? sourceInformation["userFeatureId"]
+      : undefined;
+    for (const feature of featureSet["features"]) {
+      if (!isEntryObject(feature)) {
+        continue;
+      }
+      const { id, version } = feature;
+      const name = typeof userFeatureId === "string" ? userFeatureId : id;
+      lines.push(
+        `  ${typeof name === "string" ? name : "unknown feature"}: ${typeof version === "string" ? version : "unknown version"}`,
+      );
+    }
+  }
+
+  if (lines.length > 0) {
+    getLog().appendLine(
+      `\nDev container feature versions used:\n${lines.join("\n")}\n`,
+    );
+  }
+}
+
 export async function readMergedCustomizations(
   ctx: ExtensionContext,
   wsFsPath: string,
@@ -235,6 +272,7 @@ export async function readMergedCustomizations(
       [
         "read-configuration",
         "--include-merged-configuration",
+        "--include-features-configuration",
         "--workspace-folder",
         wsFsPath,
       ],
@@ -251,6 +289,8 @@ export async function readMergedCustomizations(
   const result =
     findResultObject(res.stdout, "mergedConfiguration") ??
     findResultObject(res.stderr, "mergedConfiguration");
+  logFeatureVersions(result?.["featuresConfiguration"]);
+
   // oxlint-disable-next-line typescript/no-unsafe-member-access
   const vscodeEntries = result?.["mergedConfiguration"]?.["customizations"]?.[
     "vscode"
