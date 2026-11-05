@@ -51,6 +51,7 @@ import {
   showCandidatePort,
 } from "../portForwarding.ts";
 import { getWorkspaceFolder } from "../utilities.ts";
+import { trackContainerShutdown } from "../containerShutdown.ts";
 
 // Authority scheme handled by our remote resolver. The full authority is
 // `<AUTHORITY_PREFIX>+<hex(json)>`, where the JSON payload mirrors the shape emitted by the
@@ -668,6 +669,7 @@ export function registerRemoteResolver(
 
       try {
         const up = await devcontainerUp(context, localFolder);
+        await trackContainerShutdown(context, localFolder, up.containerId);
         // Setup output is streamed into a read-only terminal inside here, but only on first
         // connect: reconnecting to an already-provisioned container connects silently.
         return await prepareContainerConnection(context, localFolder, up);
