@@ -222,6 +222,49 @@ function isEntryObject(entry: unknown): entry is Record<string, unknown> {
   return typeof entry === "object" && entry !== null;
 }
 
+export type ShutdownAction = "none" | "stopContainer" | "stopCompose";
+
+export async function readShutdownAction(
+  ctx: ExtensionContext,
+  wsFsPath: string,
+  containerId: string,
+): Promise<ShutdownAction> {
+  const res = await runCliCapture(
+    ctx,
+    [
+      "read-configuration",
+      "--include-merged-configuration",
+      "--workspace-folder",
+      wsFsPath,
+      "--container-id",
+      containerId,
+    ],
+    { cwd: wsFsPath },
+  );
+  const result =
+    findResultObject(res.stdout, "configuration") ??
+    findResultObject(res.stderr, "configuration");
+  const configuration: unknown = result?.["configuration"];
+  const merged: unknown = result?.["mergedConfiguration"];
+  if (res.code !== 0 || !isEntryObject(configuration)) {
+    throw new Error("Could not read devcontainer shutdown configuration");
+  }
+  const action =
+    (isEntryObject(merged) ? merged["shutdownAction"] : undefined) ??
+    configuration["shutdownAction"];
+  if (
+    action === "none" ||
+    action === "stopContainer" ||
+    action === "stopCompose"
+  ) {
+    return action;
+  }
+  if (action !== undefined) {
+    throw new Error(`Invalid shutdownAction: ${JSON.stringify(action)}`);
+  }
+  return configuration["dockerComposeFile"] ? "stopCompose" : "stopContainer";
+}
+
 // This is important for debugging when not using lockfiles.
 function logFeatureVersions(featuresConfiguration: unknown) {
   if (
