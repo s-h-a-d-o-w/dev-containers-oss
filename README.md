@@ -74,23 +74,6 @@ Requires the extension `jeanp413.open-remote-ssh`. You will be prompted for inst
 
 Also, a local SSH public key is needed (e.g., `~/.ssh/id_ed25519.pub` or `~/.ssh/id_rsa.pub`). If you only have private one, use e.g. `ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub`.
 
-## Container shutdown
-
-Closing a connected window (or reopening the folder locally) stops its container
-after a 30-second grace period. The container is **not removed** and is reused the
-next time you open the project. Reloading the window or leaving another connected
-Dev Containers OSS window open keeps it running.
-
-The extension honors `shutdownAction` in `.devcontainer/devcontainer.json`:
-
-- `"stopContainer"`: stop the development container (default for an image or Dockerfile).
-- `"stopCompose"`: stop the running containers in its Docker Compose project (default for Compose).
-- `"none"`: leave containers running after disconnecting.
-
-The shutdown configuration is read when connecting; reconnect after changing it.
-Only connections managed by this extension are tracked, not unrelated SSH windows
-or external Docker clients. Docker must remain available to perform the stop.
-
 ## Troubleshooting
 
 - Docker permissions: Ensure your user can run Docker commands without sudo, and that `docker` is available globally.
