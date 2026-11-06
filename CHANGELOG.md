@@ -1,5 +1,9 @@
 (Only changes that are likely meaningful for users are listed here.)
 
+## Unreleased
+
+- Honor `shutdownAction` when closing a connected window, with a grace period for reloads and protection for other connected windows. Stop containers without removing them.
+
 ## v1.4.0
 
 - Add option for disabling creation/use of lockfiles.
