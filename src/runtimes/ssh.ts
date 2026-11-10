@@ -87,7 +87,9 @@ export async function showHandoffLogIfPresent(): Promise<void> {
 // line of the host alias block in ~/.ssh/config. We write that block ourselves in
 // ensureSshConfigHostAlias, so the `docker exec ... <containerId> /usr/sbin/sshd` form
 // is stable and can be parsed back out.
-function getContainerIdFromSshConfig(hostAlias: string): string | undefined {
+export function getContainerIdFromSshConfig(
+  hostAlias: string,
+): string | undefined {
   const sshConfigPath = path.join(getHomeDir(), ".ssh", "config");
   if (!fs.existsSync(sshConfigPath)) {
     return undefined;
