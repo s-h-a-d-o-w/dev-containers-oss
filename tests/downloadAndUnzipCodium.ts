@@ -5,28 +5,19 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
-import ky, { type Options as KyOptions } from "ky";
+import ky from "ky";
 
 const execFileAsync = promisify(execFile);
 
 export const releases = {
-  latest: `https://api.github.com/repos/VSCodium/VSCodium/releases/latest`,
-  firstSupported: `https://api.github.com/repos/VSCodium/VSCodium/releases/tags/1.126.04524`,
-};
+  latest: undefined, // resolves to the latest release.
+  firstSupported: "1.126.04524",
+} satisfies Record<string, string | undefined>;
 export type ReleaseKey = keyof typeof releases;
 
 const isWindows = process.platform === "win32";
 const isDarwin = process.platform === "darwin";
-
-type GitHubReleaseAsset = {
-  name: string;
-  browser_download_url: string;
-};
-
-type GitHubRelease = {
-  tag_name: string;
-  assets: GitHubReleaseAsset[];
-};
+const RELEASES_URL = "https://github.com/VSCodium/VSCodium/releases";
 
 function getPlatformIdentifier(): string {
   if (!["arm64", "x64"].includes(process.arch)) {
@@ -45,54 +36,28 @@ function getPlatformIdentifier(): string {
   return `${process.platform}-${process.arch}`;
 }
 
-function getKyOptions(headers?: Record<string, string>): KyOptions {
-  const token = process.env["GITHUB_TOKEN"];
-  return {
-    headers: {
-      ...headers,
-      ...(token ? { Authorization: `token ${token}` } : {}),
-    },
-    retry: {
-      limit: 30,
-      jitter: true,
-      statusCodes: [403], // Rate limit exceeded
-      afterStatusCodes: [403],
-    },
-  };
-}
-
-async function fetchRelease(url: string) {
-  const options = getKyOptions({
-    Accept: "application/vnd.github+json",
-  });
-
+// Uses the github.com redirect instead of the REST API, which is rate limited without a token.
+async function fetchLatestTag() {
+  let url: string;
   try {
-    const response = (await ky.get(url, options).json()) as GitHubRelease;
-    return response;
+    ({ url } = await ky.head(`${RELEASES_URL}/latest`));
   } catch (error) {
     throw new Error(`Failed to fetch latest VSCodium release: ${error}`, {
       cause: error,
     });
   }
+
+  const tag = /\/releases\/tag\/(?<tag>[^/?#]+)$/u.exec(url)?.groups?.["tag"];
+  if (!tag) {
+    throw new Error(`Unexpected VSCodium latest release URL: ${url}`);
+  }
+  return decodeURIComponent(tag);
 }
 
-function selectAsset(
-  release: GitHubRelease,
-  platformId: string,
-): GitHubReleaseAsset {
+function getAsset(tag: string, platformId: string) {
   const extension = process.platform === "linux" ? ".tar.gz" : ".zip";
-  const asset = release.assets.find(
-    (candidate) =>
-      candidate.name.startsWith("VSCodium-") &&
-      candidate.name.includes(platformId) &&
-      candidate.name.endsWith(extension),
-  );
-  if (!asset) {
-    throw new Error(
-      `No VSCodium ${extension} asset found for platform "${platformId}" in release ${release.tag_name}`,
-    );
-  }
-  return asset;
+  const name = `VSCodium-${platformId}-${tag}${extension}`;
+  return { name, url: `${RELEASES_URL}/download/${tag}/${name}` };
 }
 
 async function downloadFile(url: string, destination: string): Promise<void> {
@@ -133,8 +98,8 @@ export async function downloadAndUnzipCodium(
 ): Promise<string> {
   console.log(`Downloading VSCodium release: ${which}`);
   const platformId = getPlatformIdentifier();
-  const release = await fetchRelease(releases[which]);
-  const asset = selectAsset(release, platformId);
+  const tag = releases[which] ?? (await fetchLatestTag());
+  const asset = getAsset(tag, platformId);
 
   const workDir = path.join(tmpdir(), "vscodium-cache-" + which);
   console.log(`Downloading VSCodium release to: ${workDir}`);
@@ -155,7 +120,7 @@ export async function downloadAndUnzipCodium(
   }
 
   await mkdir(workDir, { recursive: true });
-  await downloadFile(asset.browser_download_url, archivePath);
+  await downloadFile(asset.url, archivePath);
   await extractArchive(archivePath, extractDir);
   await rm(archivePath, { force: true });
 
