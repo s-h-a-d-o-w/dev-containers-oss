@@ -39,6 +39,12 @@ function createWorkbox(which: ReleaseKey, additionalArgs: string[] = []) {
     use: (r: Page) => Promise<void>,
   ) => {
     const defaultCachePath = await createTempDir();
+    const userDataPath = path.join(defaultCachePath, "user-data");
+    const fixturePath = path.join(defaultCachePath, "fixture");
+    await fs.promises.cp(path.join(__dirname, "fixture"), fixturePath, {
+      recursive: true,
+    });
+
     const codiumPath = await downloadAndUnzipCodium(which);
     console.log(`Using VSCodium from ${codiumPath}`);
 
@@ -59,10 +65,10 @@ function createWorkbox(which: ReleaseKey, additionalArgs: string[] = []) {
         "--disable-workspace-trust",
         `--extensionDevelopmentPath=${path.join(__dirname, "..")}`,
         `--extensions-dir=${path.join(defaultCachePath, "extensions")}`,
-        `--user-data-dir=${path.join(defaultCachePath, "user-data")}`,
-        isWindows
-          ? process.env["WSL_FIXTURE_PATH"]!
-          : path.join(__dirname, "fixture"),
+        `--user-data-dir=${userDataPath}`,
+        // Logs default to a shared, per-second-timestamped dir in ~/.local/state/VSCodium, which are used for output channels => parallel instances would write to the same output channel.
+        `--logsPath=${path.join(userDataPath, "logs")}`,
+        isWindows ? process.env["WSL_FIXTURE_PATH"]! : fixturePath,
       ],
     });
 

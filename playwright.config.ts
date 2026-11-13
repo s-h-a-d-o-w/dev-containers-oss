@@ -16,7 +16,6 @@ export default defineConfig({
   expect: {
     timeout: 120_000,
   },
-  workers: 1,
   testDir: "tests",
 
   // Tests have become incredibly flaky ever since I started testing first supported and latest VSCodium release. This also weird stuff going on with timeouts, where e.g. default action timeouts are reported as 30s even though they're supposed to be 10s by default: https://github.com/s-h-a-d-o-w/dev-containers-oss/actions/runs/42052410368/job/127340797172
