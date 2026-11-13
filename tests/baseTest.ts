@@ -1,4 +1,3 @@
-// oxlint-disable no-use-before-define
 /**
  * Copyright (c) Microsoft Corporation.
  *
@@ -25,19 +24,27 @@ import {
 
 export { expect } from "@playwright/test";
 
+type TestOptions = {
+  release: ReleaseKey;
+};
+
 type TestFixtures = {
   createTempDir: () => Promise<string>;
-  latest: Page;
-  firstSupported: Page;
+  workbox: Page;
 };
 
 const isWindows = process.platform === "win32";
 
-function createWorkbox(which: ReleaseKey, additionalArgs: string[] = []) {
-  return async (
-    { createTempDir }: TestFixtures,
-    use: (r: Page) => Promise<void>,
-  ) => {
+const additionalArgsByRelease: Record<ReleaseKey, string[]> = {
+  firstSupported: [],
+  latest: ["--enable-proposed-api=s-h-a-d-o-w.dev-containers-oss"],
+};
+
+export const test = base.extend<TestOptions & TestFixtures>({
+  release: ["latest", { option: true }],
+
+  workbox: async ({ createTempDir, release }, use) => {
+    const additionalArgs = additionalArgsByRelease[release];
     const defaultCachePath = await createTempDir();
     const userDataPath = path.join(defaultCachePath, "user-data");
     const fixturePath = path.join(defaultCachePath, "fixture");
@@ -45,7 +52,7 @@ function createWorkbox(which: ReleaseKey, additionalArgs: string[] = []) {
       recursive: true,
     });
 
-    const codiumPath = await downloadAndUnzipCodium(which);
+    const codiumPath = await downloadAndUnzipCodium(release);
     console.log(`Using VSCodium from ${codiumPath}`);
 
     const electronApp = await _electron.launch({
@@ -96,14 +103,7 @@ function createWorkbox(which: ReleaseKey, additionalArgs: string[] = []) {
       const logOutputPath = test.info().outputPath("vscode-logs");
       await fs.promises.cp(logPath, logOutputPath, { recursive: true });
     }
-  };
-}
-
-export const test = base.extend<TestFixtures>({
-  firstSupported: createWorkbox("firstSupported"),
-  latest: createWorkbox("latest", [
-    "--enable-proposed-api=s-h-a-d-o-w.dev-containers-oss",
-  ]),
+  },
 
   // playwright requires an object for fixtures, even if unused
   // oxlint-disable-next-line no-empty-pattern
