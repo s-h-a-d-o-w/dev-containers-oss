@@ -77,14 +77,17 @@ const clean: esbuild.Plugin = {
 
 async function main() {
   const ctx = await esbuild.context({
-    entryPoints: ["src/extension.ts"],
+    entryPoints: {
+      extension: "src/extension.ts",
+      shutdownWatcher: "src/shutdownWatcherMain.ts",
+    },
     bundle: true,
     format: "cjs",
     minify: production,
     sourcemap: !production,
     sourcesContent: false,
     platform: "node",
-    outfile: "dist/extension.js",
+    outdir: "dist",
     external: ["vscode", "fs", "path", "child_process", "net"],
     banner: {
       js: `globalThis.__BUILD_INFO__ = ${JSON.stringify({
