@@ -23,7 +23,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@devcontainers/cli": "^0.90.0"
+    "@devcontainers/cli": "^0.91.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
@@ -33,14 +33,14 @@
     "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.28.2",
     "husky": "^9.1.7",
-    "knip": "^6.45.1",
+    "knip": "^6.47.0",
     "ky": "^2.2.0",
-    "lint-staged": "^17.6.0",
-    "oxfmt": "^0.78.0",
-    "oxlint": "^1.93.0",
+    "lint-staged": "^17.6.1",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
     "oxlint-tsgolint": "^7.0.2007",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   },
   "contributes": {
     "commands": [
