@@ -2,7 +2,7 @@ import path from "node:path";
 import type { ExtensionContext, Uri } from "vscode";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runCommandCapture } from "./runCommands.ts";
-import { devcontainerUp } from "./devContainerCli.ts";
+import { devcontainerUp, readShutdownAction } from "./devContainerCli.ts";
 
 // Only the VS Code API surface used by these tests is available outside the editor.
 // @ts-expect-error No full mock
@@ -31,6 +31,51 @@ const context = {
   extensionUri: { fsPath: path.resolve(import.meta.dirname, "..") },
 } as ExtensionContext;
 const workspacePath = String.raw`\\wsl.localhost\Debian\home\user\project`;
+
+describe("shutdown configuration", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it.each([
+    [{ image: "image" }, {}, "stopContainer"],
+    [{ dockerComposeFile: "compose.yaml" }, {}, "stopCompose"],
+    [{ dockerComposeFile: ["compose.yaml"] }, {}, "stopCompose"],
+    [{ image: "image", shutdownAction: "none" }, {}, "none"],
+    [
+      { dockerComposeFile: "compose.yaml", shutdownAction: "stopContainer" },
+      {},
+      "stopContainer",
+    ],
+    [{ image: "image" }, { shutdownAction: "none" }, "none"],
+  ])(
+    "reads configuration %j with metadata %j",
+    async (configuration, mergedConfiguration, expected) => {
+      vi.mocked(runCommandCapture).mockResolvedValue({
+        code: 0,
+        stderr: "",
+        stdout: JSON.stringify({ configuration, mergedConfiguration }),
+      });
+      await expect(
+        readShutdownAction(context, "/project", "container-id"),
+      ).resolves.toBe(expected);
+      expect(vi.mocked(runCommandCapture).mock.calls[0]?.[1]).toContain(
+        "--container-id",
+      );
+    },
+  );
+
+  it("does not guess a shutdown policy when reading configuration fails", async () => {
+    vi.mocked(runCommandCapture).mockResolvedValue({
+      code: 1,
+      stdout: "",
+      stderr: "failed",
+    });
+    await expect(
+      readShutdownAction(context, "/project", "container-id"),
+    ).rejects.toThrow("shutdown configuration");
+  });
+});
 
 describe("wsl CLI dependencies", () => {
   beforeEach(() => {

@@ -15,6 +15,7 @@ import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";
 import type { BuildOptions } from "./types/types.ts";
 import {
   getConfigUri,
+  getHostAlias,
   getWorkspaceFolder,
   hasDevcontainerConfig,
   updateDevcontainerContext,
@@ -22,6 +23,7 @@ import {
 import { getLog, resetLog, setDevMode, withLogTerminal } from "./log.ts";
 import {
   getConnectedHostAlias,
+  getContainerIdFromSshConfig,
   resolveLocalWorkspaceFolder,
   showHandoffLogIfPresent,
   sshRuntime,
@@ -40,8 +42,10 @@ import {
 import {
   maybeGetHostWorkspaceUri,
   maybeGetHostWorkspacePath,
+  setWslDistroFromPath,
   WSL_WORKSPACE_KEY,
 } from "./wsl.ts";
+import { trackContainerShutdown } from "./containerShutdown.ts";
 
 const PENDING_REOPEN_KEY = `${EXTENSION_ID}.pendingReopen`;
 
@@ -105,6 +109,29 @@ export function activate(context: ExtensionContext) {
 
   void showHandoffLogIfPresent(); // SSH-only
 
+  // SSH uses another extension's resolver, so recover the managed connection here.
+  const connectedSshAlias = getConnectedHostAlias();
+  if (connectedSshAlias?.startsWith(`${EXTENSION_ID}-`)) {
+    void (async () => {
+      const savedFolder = context.globalState.get<string>(
+        `${EXTENSION_ID}.sshFolder.${connectedSshAlias}`,
+      );
+      if (savedFolder) {
+        setWslDistroFromPath(savedFolder);
+      }
+      const localFolder =
+        savedFolder ?? (await resolveLocalWorkspaceFolder(connectedSshAlias));
+      const containerId = getContainerIdFromSshConfig(connectedSshAlias);
+      if (localFolder && containerId) {
+        await trackContainerShutdown(context, localFolder, containerId);
+      }
+    })().catch((error: unknown) => {
+      getLog().appendLine(
+        `Automatic container shutdown unavailable: ${String(error)}`,
+      );
+    });
+  }
+
   // Register the native remote resolver so folders can be opened directly inside the
   // container over a docker-exec tunnel (no SSH), via the `dev-containers-oss+` authority.
   let nativeAvailable = isNativeRuntimeAvailable();
@@ -166,6 +193,10 @@ export function activate(context: ExtensionContext) {
     await withLogTerminal("Devcontainer Configuration", async () => {
       const result = await devcontainerUp(context, wsFsPath, buildOptions);
       const customizations = await readMergedCustomizations(context, wsFsPath);
+      await context.globalState.update(
+        `${EXTENSION_ID}.sshFolder.${getHostAlias(wsFsPath)}`,
+        wsFsPath,
+      );
       await sshRuntime(
         wsFsPath,
         result.containerId,
@@ -400,5 +431,6 @@ export function activate(context: ExtensionContext) {
 }
 
 export function deactivate() {
-  // no-op: containers are managed by the devcontainer CLI and reused across sessions
+  // The detached shutdown watcher observes IPC disconnect when this host exits.
+  // Do not stop here: deactivate also runs during window reloads and handoffs.
 }
