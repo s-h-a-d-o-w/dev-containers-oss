@@ -14,9 +14,8 @@ import {
 import { devcontainerUp, readMergedCustomizations } from "./devContainerCli.ts";
 import type { BuildOptions } from "./types/types.ts";
 import {
-  getConfigUri,
+  getDevcontainerConfigs,
   getWorkspaceFolder,
-  hasDevcontainerConfig,
   updateDevcontainerContext,
 } from "./utilities.ts";
 import { getLog, resetLog, setDevMode, withLogTerminal } from "./log.ts";
@@ -27,6 +26,7 @@ import {
   sshRuntime,
 } from "./runtimes/ssh.ts";
 import {
+  getConnectedContainerConfigFile,
   getConnectedContainerLocalFolder,
   nativeRuntime,
   registerRemoteResolver,
@@ -44,9 +44,11 @@ import {
 } from "./wsl.ts";
 
 const PENDING_REOPEN_KEY = `${EXTENSION_ID}.pendingReopen`;
+const ACTIVE_CONFIG_KEY = `${EXTENSION_ID}.activeConfig`;
 
 type PendingReopen = {
   localFolder: string;
+  configFile?: string;
   rebuild: boolean;
   noCache?: boolean;
   native?: boolean;
@@ -58,6 +60,32 @@ function getWorkspaceOrThrow(): WorkspaceFolder {
     throw new Error("No folder open");
   }
   return workspaceFolder;
+}
+
+async function selectDevcontainerConfig(
+  workspaceFolder: WorkspaceFolder,
+): Promise<Uri | undefined> {
+  const configs = await getDevcontainerConfigs(workspaceFolder);
+  if (!configs.length) {
+    throw new Error("No devcontainer.json found in this folder");
+  }
+  if (configs.length < 2) return configs[0];
+
+  const selected = await window.showQuickPick(
+    configs.map((uri) => ({ label: workspace.asRelativePath(uri), uri })),
+    { placeHolder: "Select a devcontainer configuration" },
+  );
+  return selected?.uri;
+}
+
+function getHostConfigPath(
+  configUri: Uri,
+  workspaceFolder: WorkspaceFolder,
+): string {
+  return path.join(
+    maybeGetHostWorkspacePath(workspaceFolder),
+    workspace.asRelativePath(configUri, false),
+  );
 }
 
 // E.g. vscodium now has native support but that might not be the case for every flavor of VS Code.
@@ -138,7 +166,7 @@ export function activate(context: ExtensionContext) {
   const initialWorkspaceFolder = getWorkspaceFolder();
   if (initialWorkspaceFolder) {
     const watcher = workspace.createFileSystemWatcher(
-      new RelativePattern(initialWorkspaceFolder, ".devcontainer/**"),
+      new RelativePattern(initialWorkspaceFolder, "{.devcontainer.json,.devcontainer/**}"),
     );
 
     const onConfigChanged = (uri: Uri) => {
@@ -165,7 +193,11 @@ export function activate(context: ExtensionContext) {
     resetLog();
     await withLogTerminal("Devcontainer Configuration", async () => {
       const result = await devcontainerUp(context, wsFsPath, buildOptions);
-      const customizations = await readMergedCustomizations(context, wsFsPath);
+      const customizations = await readMergedCustomizations(
+        context,
+        wsFsPath,
+        buildOptions.configFile,
+      );
       await sshRuntime(
         wsFsPath,
         result.containerId,
@@ -192,6 +224,7 @@ export function activate(context: ExtensionContext) {
       }
       await context.globalState.update(PENDING_REOPEN_KEY, {
         localFolder,
+        configFile: context.globalState.get<string>(`${ACTIVE_CONFIG_KEY}.${localFolder}`),
         rebuild: buildOptions.rebuild,
         noCache: buildOptions.noCache,
       } satisfies PendingReopen);
@@ -216,6 +249,7 @@ export function activate(context: ExtensionContext) {
       // detach first: reopen the host folder locally and resume there on activation.
       await context.globalState.update(PENDING_REOPEN_KEY, {
         localFolder: connectedLocalFolder,
+        configFile: getConnectedContainerConfigFile(),
         rebuild: buildOptions.rebuild,
         noCache: buildOptions.noCache,
         native: true,
@@ -238,14 +272,6 @@ export function activate(context: ExtensionContext) {
   // stay on whichever runtime the current window uses (its authority tells us which). For
   // a fresh open from a local window we prefer the native runtime and fall back to SSH.
   async function openDevcontainer(buildOptions: BuildOptions): Promise<void> {
-    if (!env.remoteName || env.remoteName === "wsl") {
-      const ws = getWorkspaceOrThrow();
-      const localFolder = maybeGetHostWorkspacePath(ws);
-      await context.globalState.update(
-        `${WSL_WORKSPACE_KEY}.${localFolder}`,
-        env.remoteName === "wsl" ? ws.uri.toString() : undefined,
-      );
-    }
     if (getConnectedHostAlias()) {
       await useSsh(buildOptions);
       return;
@@ -253,6 +279,22 @@ export function activate(context: ExtensionContext) {
     if (getConnectedContainerLocalFolder()) {
       await useNative(buildOptions);
       return;
+    }
+    const workspaceFolder = getWorkspaceOrThrow();
+    const selected = await selectDevcontainerConfig(workspaceFolder);
+    if (!selected) return;
+    buildOptions.configFile = getHostConfigPath(selected, workspaceFolder);
+    await context.globalState.update(
+      `${ACTIVE_CONFIG_KEY}.${maybeGetHostWorkspacePath(workspaceFolder)}`,
+      buildOptions.configFile,
+    );
+
+    if (!env.remoteName || env.remoteName === "wsl") {
+      const localFolder = maybeGetHostWorkspacePath(workspaceFolder);
+      await context.globalState.update(
+        `${WSL_WORKSPACE_KEY}.${localFolder}`,
+        env.remoteName === "wsl" ? workspaceFolder.uri.toString() : undefined,
+      );
     }
     if (nativeAvailable) {
       await useNative(buildOptions);
@@ -283,12 +325,23 @@ export function activate(context: ExtensionContext) {
     const buildOptions: BuildOptions = {
       rebuild: pending.rebuild,
       noCache: pending.noCache,
+      configFile: pending.configFile,
     };
     await withUiErrorHandling(
-      () =>
-        pending.native
+      async () => {
+        if (!buildOptions.configFile) {
+          const selected = await selectDevcontainerConfig(workspaceFolder);
+          if (!selected) return;
+          buildOptions.configFile = getHostConfigPath(selected, workspaceFolder);
+        }
+        await context.globalState.update(
+          `${ACTIVE_CONFIG_KEY}.${pending.localFolder}`,
+          buildOptions.configFile,
+        );
+        await (pending.native
           ? nativeRuntime(context, pending.localFolder, buildOptions)
-          : openFolderWithSsh(pending.localFolder, buildOptions),
+          : openFolderWithSsh(pending.localFolder, buildOptions));
+      },
       { appendToOutput: false },
     )();
   }
@@ -365,14 +418,9 @@ export function activate(context: ExtensionContext) {
     withUiErrorHandling(
       async () => {
         const workspaceFolder = getWorkspaceOrThrow();
-        if (!(await hasDevcontainerConfig(workspaceFolder))) {
-          throw new Error(
-            ".devcontainer/devcontainer.json not found in this folder",
-          );
-        }
-        const doc = await workspace.openTextDocument(
-          getConfigUri(workspaceFolder),
-        );
+        const selected = await selectDevcontainerConfig(workspaceFolder);
+        if (!selected) return;
+        const doc = await workspace.openTextDocument(selected);
         await window.showTextDocument(doc, { preview: false });
       },
       { appendToOutput: false },

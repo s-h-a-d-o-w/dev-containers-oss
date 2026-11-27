@@ -112,11 +112,11 @@
         },
         {
           "command": "dev-containers-oss.rebuildAndOpen",
-          "when": "dev-containers-oss.hasConfig"
+          "when": "dev-containers-oss.hasConfig || dev-containers-oss.inContainer"
         },
         {
           "command": "dev-containers-oss.rebuildNoCacheAndOpen",
-          "when": "dev-containers-oss.hasConfig"
+          "when": "dev-containers-oss.hasConfig || dev-containers-oss.inContainer"
         },
         {
           "command": "dev-containers-oss.reopenFolderLocally",
@@ -141,7 +141,7 @@
         {
           "command": "dev-containers-oss.rebuildAndOpen",
           "group": "remote_30_devcontainer_3local@3",
-          "when": "dev-containers-oss.hasConfig"
+          "when": "dev-containers-oss.hasConfig || dev-containers-oss.inContainer"
         },
         {
           "command": "dev-containers-oss.reopenFolderLocally",
@@ -159,7 +159,8 @@
   "activationEvents": [
     "onResolveRemoteAuthority:dev-container",
     "onStartupFinished",
-    "workspaceContains:.devcontainer/devcontainer.json"
+    "workspaceContains:.devcontainer/devcontainer.json",
+    "workspaceContains:.devcontainer.json"
   ],
   "extensionKind": [
     "ui",

@@ -1,9 +1,31 @@
-import { commands, Uri, workspace, type WorkspaceFolder } from "vscode";
+import { commands, FileType, Uri, workspace, type WorkspaceFolder } from "vscode";
 import path from "node:path";
 import { EXTENSION_ID } from "./constants.ts";
 
-export function getConfigUri(ws: WorkspaceFolder) {
-  return Uri.joinPath(ws.uri, ".devcontainer", "devcontainer.json");
+export async function getDevcontainerConfigs(ws: WorkspaceFolder): Promise<Uri[]> {
+  const configs: Uri[] = [];
+  const devcontainerDir = Uri.joinPath(ws.uri, ".devcontainer");
+  try {
+    for (const [name, type] of await workspace.fs.readDirectory(devcontainerDir)) {
+      if ((type & FileType.File) && /^devcontainer(?:\..+)?\.json$/u.test(name)) {
+        configs.push(Uri.joinPath(devcontainerDir, name));
+      }
+      if (type & FileType.Directory) {
+        const config = Uri.joinPath(devcontainerDir, name, "devcontainer.json");
+        try { await workspace.fs.stat(config); configs.push(config); } catch { /* absent */ }
+      }
+    }
+  } catch { /* absent */ }
+
+  const rootConfig = Uri.joinPath(ws.uri, ".devcontainer.json");
+  try { await workspace.fs.stat(rootConfig); configs.push(rootConfig); } catch { /* absent */ }
+
+  const defaultConfig = Uri.joinPath(devcontainerDir, "devcontainer.json");
+  return configs.sort((a, b) => {
+    if (a.toString() === defaultConfig.toString()) return -1;
+    if (b.toString() === defaultConfig.toString()) return 1;
+    return a.path.localeCompare(b.path);
+  });
 }
 
 export function getHomeDir(): string {
@@ -20,8 +42,7 @@ export async function hasDevcontainerConfig(ws: WorkspaceFolder | undefined) {
   }
   try {
     // Resolve the config via the VS Code filesystem API rather than Node's fs: When we're "running" in the dev container, the extension is still on the host and fs.existsSync would run on the local machine.
-    await workspace.fs.stat(getConfigUri(ws));
-    return true;
+    return (await getDevcontainerConfigs(ws)).length > 0;
   } catch {
     return false;
   }

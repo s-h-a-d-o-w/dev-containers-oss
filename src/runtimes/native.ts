@@ -76,10 +76,8 @@ type AuthorityPayload = {
   };
 };
 
-function buildAuthorityPayload(localFolder: string): AuthorityPayload {
-  const configUri = Uri.file(
-    path.join(localFolder, ".devcontainer", "devcontainer.json"),
-  );
+function buildAuthorityPayload(localFolder: string, configFile: string): AuthorityPayload {
+  const configUri = Uri.file(configFile);
 
   return {
     hostPath: localFolder,
@@ -94,8 +92,8 @@ function buildAuthorityPayload(localFolder: string): AuthorityPayload {
   };
 }
 
-function encodeAuthority(localFolder: string) {
-  const json = JSON.stringify(buildAuthorityPayload(localFolder));
+function encodeAuthority(localFolder: string, configFile: string) {
+  const json = JSON.stringify(buildAuthorityPayload(localFolder, configFile));
   return `${AUTHORITY_PREFIX}+${Buffer.from(json, "utf8").toString("hex")}`;
 }
 
@@ -112,6 +110,12 @@ function decodeLocalFolder(authority: string): string {
   }
 
   return decoded;
+}
+
+function decodeConfigFile(authority: string): string | undefined {
+  const plus = authority.indexOf("+");
+  const decoded = Buffer.from(plus !== -1 ? authority.slice(plus + 1) : authority, "hex").toString("utf8");
+  try { return (JSON.parse(decoded) as AuthorityPayload).configFile.fsPath; } catch { return undefined; }
 }
 
 // Local (host-side) marker carrying the build log that the launching window printed before
@@ -550,6 +554,7 @@ async function prepareContainerConnection(
   context: ExtensionContext,
   localFolder: string,
   up: DevcontainerUpResult,
+  configFile?: string,
 ): Promise<ManagedResolvedAuthority> {
   const product = readProductInfo();
   if (!product.commit) {
@@ -579,6 +584,7 @@ async function prepareContainerConnection(
       const customizations = await readMergedCustomizations(
         context,
         localFolder,
+        configFile,
       );
       await installExtensionsInContainer(
         up.containerId,
@@ -651,12 +657,18 @@ export function getConnectedContainerLocalFolder(): string | undefined {
   return decodeLocalFolder(authority);
 }
 
+export function getConnectedContainerConfigFile(): string | undefined {
+  if (!getConnectedContainerLocalFolder()) return undefined;
+  return decodeConfigFile(getWorkspaceFolder()?.uri.authority ?? "");
+}
+
 export function registerRemoteResolver(
   context: ExtensionContext,
 ): Disposable[] {
   const resolver: RemoteAuthorityResolver = {
     async resolve(authority) {
       const localFolder = decodeLocalFolder(authority);
+      const configFile = decodeConfigFile(authority);
 
       const handoffLog = consumeHandoffLog(localFolder);
       if (handoffLog === undefined) {
@@ -667,10 +679,10 @@ export function registerRemoteResolver(
       }
 
       try {
-        const up = await devcontainerUp(context, localFolder);
+        const up = await devcontainerUp(context, localFolder, { rebuild: false, configFile });
         // Setup output is streamed into a read-only terminal inside here, but only on first
         // connect: reconnecting to an already-provisioned container connects silently.
-        return await prepareContainerConnection(context, localFolder, up);
+        return await prepareContainerConnection(context, localFolder, up, configFile);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         getLog().appendLine(`Error: ${message}`);
@@ -707,13 +719,14 @@ export async function nativeRuntime(
   resetLog();
   logBuildInfo();
 
+  const configFile = buildOptions.configFile ?? path.join(localFolder, ".devcontainer", "devcontainer.json");
   const up = await withLogTerminal("Devcontainer Configuration", () =>
     devcontainerUp(context, localFolder, buildOptions),
   );
   // Hand the build log off to the window we are about to open.
   fs.writeFileSync(getHandoffMarkerPath(localFolder), getBufferedLog());
 
-  const authority = encodeAuthority(localFolder);
+  const authority = encodeAuthority(localFolder, configFile);
   const folder =
     up.remoteWorkspaceFolder || `/workspaces/${path.basename(localFolder)}`;
   const remoteUri = Uri.parse(`vscode-remote://${authority}${folder}`);
