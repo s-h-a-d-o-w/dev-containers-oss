@@ -19,6 +19,7 @@ export type DevcontainerUpResult = {
 export type BuildOptions = {
   rebuild: boolean;
   noCache?: boolean;
+  configFile?: string;
 };
 
 export type DevcontainerCustomizations = {

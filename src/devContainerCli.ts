@@ -175,6 +175,7 @@ export async function devcontainerUp(
   setWslDistroFromPath(wsFsPath);
 
   const args = ["up", "--workspace-folder", wsFsPath];
+  if (options?.configFile) args.push("--config", options.configFile);
   if (
     workspace.getConfiguration(EXTENSION_ID).get<boolean>("noLockfile", false)
   ) {
@@ -262,6 +263,7 @@ function logFeatureVersions(featuresConfiguration: unknown) {
 export async function readMergedCustomizations(
   ctx: ExtensionContext,
   wsFsPath: string,
+  configFile?: string,
 ): Promise<DevcontainerCustomizations> {
   const empty: DevcontainerCustomizations = { extensions: [], settings: {} };
 
@@ -275,6 +277,7 @@ export async function readMergedCustomizations(
         "--include-features-configuration",
         "--workspace-folder",
         wsFsPath,
+        ...(configFile ? ["--config", configFile] : []),
       ],
       { cwd: wsFsPath },
     );
